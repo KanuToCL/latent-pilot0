@@ -20,6 +20,17 @@ from ..seam.registry import make_encoder
 CLEAN = "clean"
 
 
+def iter_latents(manifest, name, variant, cache_dir, *, ceiling_dbfs=CEILING_DBFS):
+    """Yield `(row, LatentResult)` for every renderable cell of (name, variant) from
+    the Phase-3 cache — the single cache-walk shared by the pooled design matrix and
+    the frame-level dropout probe. No re-encode; the manifest is the index."""
+    enc = make_encoder(name)
+    cv = cache_version(manifest, ceiling_dbfs)
+    for r in renderable_rows(manifest, enc.native_sr):
+        cid = cell_id(r["source"], r["family"], r["severity"], enc.native_sr)
+        yield r, load_latent(latent_path(cache_dir, name, variant, cid, cv))
+
+
 @dataclass(frozen=True)
 class ProbeData:
     X: np.ndarray  # [N, 2D] mean+std pooled features
@@ -52,14 +63,8 @@ class ProbeData:
 def build_probe_data(
     manifest: dict, name: str, variant: str, cache_dir, *, ceiling_dbfs: float = CEILING_DBFS
 ) -> ProbeData:
-    enc = make_encoder(name)
-    cv = cache_version(manifest, ceiling_dbfs)
-    rows = renderable_rows(manifest, enc.native_sr)
-
     feats, fam, sev, split, group = [], [], [], [], []
-    for r in rows:
-        cid = cell_id(r["source"], r["family"], r["severity"], enc.native_sr)
-        lat = load_latent(latent_path(cache_dir, name, variant, cid, cv))
+    for r, lat in iter_latents(manifest, name, variant, cache_dir, ceiling_dbfs=ceiling_dbfs):
         feats.append(pool_mean_std(lat.frames))
         fam.append(r["family"])
         sev.append(r["severity"])

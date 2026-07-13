@@ -17,11 +17,13 @@ from .real import RealBackendUnavailable, RealCodecEncoder
 
 # Real model specs. `variants` are the representation points swept in §2.3.
 # `latent_dim` values are nominal stand-ins for shape parity, reconciled against
-# the true checkpoints at bring-up (docs/DECISIONS.md D6).
+# the true checkpoints at bring-up (docs/DECISIONS.md D6). RVQ-depth variants
+# `d{k}` are the sum of the first k codebook embeddings — same embedding space as
+# the continuous pre-quant `z`, so latent_dim is shared across a model's variants.
 REAL_SPECS: dict[str, dict] = {
     "encodec24k": dict(
         family="encodec", native_sr=24000, latent_dim=128,
-        checkpoint="facebook/encodec_24khz", variants=("z",),
+        checkpoint="facebook/encodec_24khz", variants=("z", "d1", "d2", "d4", "d8"),
     ),
     "wavlm": dict(
         family="wavlm", native_sr=16000, latent_dim=1024,
@@ -29,7 +31,7 @@ REAL_SPECS: dict[str, dict] = {
     ),
     "dac44k": dict(
         family="dac", native_sr=44100, latent_dim=1024,
-        checkpoint="descript/dac_44khz", variants=("z",),
+        checkpoint="descript/dac_44khz", variants=("z", "d1", "d2", "d4", "d8"),
     ),
     "mimi": dict(
         family="mimi", native_sr=24000, latent_dim=512,
@@ -37,15 +39,22 @@ REAL_SPECS: dict[str, dict] = {
     ),
 }
 
-# Families whose real encode() is implemented today; others are wired at bring-up
-# (Phase 5). Availability reflects this so the map never claims an encodable
-# backend that would raise NotImplementedError.
-WIRED_FAMILIES = {"encodec", "wavlm"}
+# Families whose real encode() is implemented (torch-gated, BRINGUP-validated on
+# the box). Availability = torch installed AND family wired, so the map never
+# claims an encodable backend that would raise NotImplementedError. All four are
+# wired as of Phase 5; GPU_BRINGUP step 1 shape-checks each before any encoding.
+WIRED_FAMILIES = {"encodec", "wavlm", "dac", "mimi"}
 
 FAKE_PREFIX = "fake-"
 FLOOR_NAME = "logmel"
 ENERGY_NAME = "energy"
 BASELINES = {FLOOR_NAME: LogMelEncoder, ENERGY_NAME: EnergyEncoder}
+
+# Non-torch import each family's real encode() needs. Checked (import-free, via
+# find_spec) so the box doesn't report a backend available when a sub-dep is
+# missing — it would otherwise raise ImportError only at encode time (S4).
+_FAMILY_REQUIRES = {"encodec": "transformers", "wavlm": "transformers",
+                    "mimi": "transformers", "dac": "dac"}
 
 
 def make_encoder(name: str):
@@ -73,14 +82,21 @@ def make_encoder(name: str):
 
 def available_encoders() -> dict[str, bool]:
     """Map every encoder name → is it *encodable* here. `fake-*` always True; real
-    names True only where torch is installed AND the family is wired."""
+    names True only where torch AND the family's backend library are installed AND
+    the family is wired."""
+    import importlib.util
+
     out: dict[str, bool] = {b: True for b in BASELINES}  # torch-free baselines, always available
     for base in REAL_SPECS:
         out[f"{FAKE_PREFIX}{base}"] = True
     for name, spec in REAL_SPECS.items():
         try:
-            RealCodecEncoder(name=name, **spec)
-            out[name] = spec["family"] in WIRED_FAMILIES
+            RealCodecEncoder(name=name, **spec)  # raises without torch → Mac reports all False
         except RealBackendUnavailable:
             out[name] = False
+            continue
+        # soxr resamples the input to native rate for every real family (_to_native).
+        libs = (_FAMILY_REQUIRES[spec["family"]], "soxr")
+        has_libs = all(importlib.util.find_spec(m) is not None for m in libs)
+        out[name] = spec["family"] in WIRED_FAMILIES and has_libs
     return out

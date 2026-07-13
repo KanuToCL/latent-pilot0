@@ -27,7 +27,7 @@ def test_encode_returns_dict_of_declared_variants():
     enc = make_encoder("fake-wavlm")
     out = enc.encode(_wav(1), SR)
     assert set(out) == set(enc.variants) == {"l1", "l6", "l12", "l18", "l24"}
-    assert set(make_encoder("fake-encodec24k").encode(_wav(1), SR)) == {"z"}
+    assert set(make_encoder("fake-encodec24k").encode(_wav(1), SR)) == {"z", "d1", "d2", "d4", "d8"}
 
 
 def test_fake_encoder_is_deterministic():
@@ -104,14 +104,22 @@ def test_registry_lists_fake_and_real():
 
 
 def test_availability_reflects_wired_families():
-    # dac/mimi are not wired yet → False even where torch exists (never lie).
+    # All four families are wired as of Phase 5; availability = wired AND the family's
+    # backend lib present. So a name reported available MUST have its lib importable —
+    # never claim encodable then raise ImportError at encode time (findings S4).
     try:
         import torch  # noqa: F401
     except ImportError:
         pytest.skip("no torch — real availability is uniformly False on the Mac")
+    import importlib.util
+
+    from pilot0.seam.registry import _FAMILY_REQUIRES, WIRED_FAMILIES
+
+    assert {"encodec", "wavlm", "dac", "mimi"} <= WIRED_FAMILIES
     avail = available_encoders()
-    assert avail["encodec24k"] is True and avail["wavlm"] is True
-    assert avail["dac44k"] is False and avail["mimi"] is False
+    for name, spec in REAL_SPECS.items():
+        if avail[name]:
+            assert importlib.util.find_spec(_FAMILY_REQUIRES[spec["family"]]) is not None
 
 
 def test_unknown_encoder_raises():

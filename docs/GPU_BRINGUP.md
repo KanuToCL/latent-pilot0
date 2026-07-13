@@ -13,22 +13,27 @@ python -c "import torch; print(torch.cuda.is_available())"   # expect True
 ```
 
 ## 1. Real backends load & shape-check (all variants)
-Wired today: `encodec24k` (variant `z`) and `wavlm` (layers `l1,l6,l12,l18,l24`).
+All four families are wired: `encodec24k` (`z` + RVQ depths `d1,d2,d4,d8`),
+`wavlm` (layers `l1,l6,l12,l18,l24`), `dac44k` (`z` + `d1,d2,d4,d8`), `mimi`
+(`semantic`, `acoustic`). Their encode paths are BRINGUP — written against the
+documented APIs, first executed HERE.
 ```bash
 python - <<'PY'
 from pilot0.seam.registry import make_encoder
 from pilot0.audio.synth import synth_clip
-for name in ("encodec24k", "wavlm"):
+for name in ("encodec24k", "wavlm", "dac44k", "mimi"):
     out = make_encoder(name).encode(synth_clip(0, sr=48000), 48000)
     for v, r in out.items():
         print(name, v, r.frames.shape, f"{r.frame_rate_hz:.1f} fps", r.meta["device"])
 PY
 ```
 Confirm per variant: `frames` is `[T, D]`, `D` matches the checkpoint's real
-latent dim, `device == "cuda"`, and `frame_rate_hz` is sane (EnCodec-24k ≈ 75,
-WavLM ≈ 50). **If real D ≠ REAL_SPECS latent_dim, update `REAL_SPECS` +
-`configs/models.yaml` (D6) before any encoding** — `tests/test_config.py` guards
-the two staying in sync.
+latent dim, RVQ depths `d{k}` share their model's `z` dim, `device == "cuda"`, and
+`frame_rate_hz` is sane (EnCodec-24k ≈ 75, WavLM ≈ 50, DAC-44k ≈ 86, Mimi ≈ 12.5).
+**If real D ≠ REAL_SPECS latent_dim, update `REAL_SPECS` + `configs/models.yaml`
+(D6) before any encoding** — `tests/test_config.py` guards the two staying in sync.
+The Mimi semantic/acoustic split and the depth partial-decodes are the paths most
+likely to need an API touch-up; fix them here, re-run parity, then encode.
 
 ## 2. Fake/real parity (contract, not values)
 ```bash
@@ -38,20 +43,37 @@ Asserts fake and real return the same *contract* — same variant set, rank-2
 frames, positive frame rate, matching latent dim, shared meta keys — not the same
 numbers.
 
-## 3. Wire the Phase-5 backends
-`dac` and `mimi` raise `NotImplementedError` in `_ensure` and report
-`available == False`. Implement each against its library (descript-audio-codec;
-transformers Mimi — surface dequantized embeddings, D8), add EnCodec RVQ-depth
-variants `{d1,d2,d4,d8}`, extend `WIRED_FAMILIES`, re-run steps 1–2, and record
-real latent dims (D6).
+## 3. (Phase-5 backends are already wired — verify, don't implement)
+`dac`, `mimi`, and the EnCodec/DAC RVQ-depth variants are implemented in `real.py`
+(BRINGUP) and in `WIRED_FAMILIES`. Step 1 is where they first run: confirm the DAC
+`from_codes` depth decode and the Mimi split-RVQ `semantic`/`acoustic` decoders
+return `[T, D]`, then record real latent dims (D6). If an API signature has drifted
+in the installed library version, fix it in the relevant `_encode_*` helper — the
+`LatentResult` contract and everything downstream are unchanged.
 
 ## 4. Smoke on real encoders
 Point `SMOKE_ENCODERS` at the bare names and:
 ```bash
 make smoke
 ```
-Expect `encodec24k` + `wavlm` available: True (dac/mimi False until step 3) and
-shapes logged across variants.
+Expect all four available: True (each family's backend lib installed) and shapes
+logged across variants.
+
+**Frame-level dropout diagnostic (elder W3).** The frame-level dropout probe assumes
+a zeroed audio burst maps to a LOW-NORM latent frame. That holds for EnCodec/DAC but
+a per-frame-normalised SSL rep (WavLM) can flatten frame norm, silently yielding no
+dropout signal. Before trusting `frame_dropout`'s frame-vs-pooled gap for a backend,
+confirm the per-frame L2 norm actually drops on a dropout-degraded clip:
+```python
+import numpy as np
+from pilot0.seam.registry import make_encoder
+from pilot0.degrade.grid import apply_degradation   # dropout, severity index 5
+enc = make_encoder("wavlm")
+clean = enc.encode(wav, sr)["l12"].frames
+dropped = enc.encode(apply_degradation(wav, sr, "dropout", 5).wav, sr)["l12"].frames
+print(np.median(np.linalg.norm(dropped, axis=1)) / np.median(np.linalg.norm(clean, axis=1)))
+# ≪ 1 means the signature survives; ≈ 1 means the probe is blind for this backend.
+```
 
 ## 5. Build the real manifest — GROUPED (mandatory for VCTK/LibriSpeech)
 Multi-clip corpora share a speaker/track across many clips. Preflight MUST get a

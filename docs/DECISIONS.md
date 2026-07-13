@@ -2,6 +2,86 @@
 
 Running log of choices that would otherwise be invisible in the code. Newest first.
 
+## Phase 5 — full representation matrix, elder review applied (2026-07-13)
+
+The §2.3 matrix is completed and the §2.4 analyses that don't need a reference
+metric are built. All codec numbers on the Mac are still FAKE (plumbing); the
+scientific matrix comes from the box. New `analysis/` package + probe extensions.
+Physics (APPROVE-WITH-CONCERNS) + adversarial (NOT-APPROVED, 2 blockers) +
+cartographer; all findings below landed and re-reviewed.
+
+- **RVQ-depth variants are first-class (§2.3).** EnCodec-24k and DAC-44k now
+  declare `z, d1, d2, d4, d8`; `d{k}` = the sum of the first k residual-codebook
+  embeddings, in the same embedding space as the continuous `z`, so `latent_dim`
+  is shared across a model's variants (fake auto-emits all; real sums codebooks at
+  bring-up). WavLM layer sweep and Mimi semantic/acoustic were already declared.
+- **All four real families wired (`WIRED_FAMILIES` = encodec/wavlm/dac/mimi).**
+  `real.py` now implements DAC (`dac.DAC.load` → `from_codes` for depths) and Mimi
+  (the **semantic vs acoustic split** via the split-RVQ decoders — the §2.3 headline
+  sub-experiment) plus EnCodec/DAC RVQ-depth partial decodes. These paths are
+  BRINGUP: written against the documented APIs, validated on the box (shape +
+  fake/real parity), never run on the Mac. `available_encoders()` still reports
+  False for them on a torch-less machine, so nothing lies.
+- **Nonlinearity gap (RQ1, §2.4 secondary).** `mlp_probe.py`: a 2-layer MLP-256
+  type probe reported next to the linear probe; the MLP−linear macro-F1 gap is
+  **paired-bootstrapped** (both probes scored on the same drawn test groups) so its
+  CI-lower says whether nonlinear headroom is real. Reuses the linear probe's own
+  pipeline (single source of truth).
+- **Frame-level dropout probe (§2.4 "frame-level for dropouts only", uses D9).**
+  mean+std pooling averages away the intermittent zeroed bursts that ARE the
+  dropout signature. `frame_dropout.py` builds a **level-invariant** feature from
+  the per-frame latent norm (normalised by the clip median, so the L4 scalar is
+  irrelevant): low order-statistics + fraction of near-silent frames. The reported
+  gap is precisely "dropout-tuned frame feature vs generic mean+std pooling" — NOT
+  the broad "frame-level info helps" (mean+std's std already carries some burst
+  variance) — findings W3/P2. The low-norm assumption is representation-dependent
+  (a per-frame-normalised SSL rep like WavLM can flatten frame norm → honest
+  false-negative); GPU_BRINGUP verifies frame norm actually drops on dropout per
+  backend before the gap is trusted.
+- **Interpolation / monotonicity (RQ5) — the single-level trap avoided, and made
+  significance- and loudness-safe.** §2.4 pre-registered "train {1,2,4,5}, test
+  {3}". Scoring SRCC on the held-out level 3 ALONE is a constant target →
+  undefined. `interpolation.py` trains on {1,2,4,5} and scores SRCC over the FULL
+  held-out-source ladder 1..5 (a real rank correlation). The interpolation claim is
+  a **bootstrap probability** (`interp_frac` — fraction of test-group resamples in
+  which mean-pred(2) < mean-pred(3) < mean-pred(4), STRICTLY increasing only; a bare
+  three-point check fires ~1/3 on noise and a backwards-ordinal probe must not count
+  — findings B1/P1). A family is `evaluable` only when both neighbours (2, 4) AND
+  the held-out 3 are present in the common cells (band-limit at 16 kHz keeps only
+  the widest cutoffs, so placing 3 would be extrapolation — finding W2). `interpolates`
+  requires interp_frac ≥ 0.90 AND a positive SRCC CI-lower; whether the codec
+  interpolates BEYOND loudness is judged against the **energy control's** own
+  interpolation at the report level (`n_interpolate(energy)`: codec SRCC CI-lower ≥
+  energy CI-upper + 0.05, the same buffer as G1b — findings W1). Clean is excluded.
+  Supersedes the Phase-4 note that deferred the interpolation SRCC.
+- **Geometry (RQ2).** `geometry.py`, all in the standardised feature space (one
+  scaler on the degraded rows so no high-variance dim dominates a cosine): the
+  linear probe's per-class weight directions (cosine matrix), the probe-free
+  class-mean−clean directions (cosine matrix), and PCA of the degraded
+  (family, severity) condition centroids (clean excluded; count is common-cell
+  dependent — band-limit sheds cutoffs ≥ Nyquist per rate — so NOT a fixed 36,
+  findings C1/P3/S6). These views are **in-sample / descriptive** (fit on all rows,
+  they gate nothing) — `probe_cosine` is NOT the held-out Gate-1 probe (S1). Off-
+  diagonal cosines near 0 ⇒ separable directions; feeds, but does NOT yet run, the
+  Phase-7 additivity test.
+- **Additivity deferred to Phase 7 (per §3).** The additivity cosine test needs the
+  pairwise-combination subset (noise×clip, hiss×lowpass, hum×mp3), which §3 places
+  in Phase 7 with the combo grid; Phase 5 geometry stops at the single-degradation
+  direction structure so no grid/manifest change is dragged in here.
+- **`make analyze` (acceptance).** `analysis/audit.py` writes the three artifacts —
+  `reports/analysis/{heatmap,cosine,monotonicity}.json` — over the full matrix with
+  the fake-⇒-plumbing banner. Figure rendering (PNG) stays in Phase 8
+  `make reproduce-figures`; Phase 5 produces the numeric artifacts they draw from.
+- **Hardening from the adversarial pass.** RVQ depth decode asserts the checkpoint
+  exposes ≥ the deepest requested codebook before slicing, so `d8` can never be a
+  silently truncated `d6` (B2). Artifact JSON serialises non-finite floats as
+  `null` so strict parsers don't choke on bare NaN (S3). `available_encoders()` now
+  also checks the family's backend lib via `find_spec`, so the box can't report a
+  backend encodable then fail at encode (S4); the Mac still reports all real names
+  False. `encode()` has an explicit `else: raise` after the family dispatch (S5).
+  The analysis summary flags a candidate UNDERPOWERED when test sources <
+  `MIN_TEST_GROUPS`, since a ≤1-group bootstrap CI collapses to a point (W4).
+
 ## Phase 4 — probes & Gate 1, elder review applied (2026-07-13)
 
 New `probes/` package: linear type + severity probes on the cached latents, scored

@@ -7,7 +7,7 @@ encoders:
     native_sr: 24000
     latent_dim: 128
     checkpoint: facebook/encodec_24khz
-    variants: [z]
+    variants: [z, d1, d2, d4, d8]
   wavlm:
     family: wavlm
     native_sr: 16000
@@ -19,7 +19,7 @@ encoders:
     native_sr: 44100
     latent_dim: 1024
     checkpoint: descript/dac_44khz
-    variants: [z]
+    variants: [z, d1, d2, d4, d8]
   mimi:
     family: mimi
     native_sr: 24000

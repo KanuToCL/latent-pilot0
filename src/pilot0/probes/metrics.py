@@ -72,3 +72,24 @@ def bootstrap_over_groups(
     if finite.size < n * 0.5:  # mostly-undefined resamples → don't trust the CI
         return Estimate(point=point, lo=float("nan"), hi=float("nan"))
     return Estimate(point=point, lo=float(np.percentile(finite, 2.5)), hi=float(np.percentile(finite, 97.5)))
+
+
+def bootstrap_fraction(
+    groups: np.ndarray, indicator: Callable[[np.ndarray], float], *, n: int = N_BOOTSTRAP, seed: int = 0
+) -> float:
+    """Fraction of TEST-GROUP resamples in which `indicator(row_index)` holds (returns
+    1.0 / 0.0, or nan when undefined on that resample → dropped). Returns nan if the
+    indicator is undefined on more than half the resamples — the same trust floor as
+    the CI. Used where the summary wanted is a probability of an ordering, for which a
+    percentile CI is the wrong shape."""
+    if len(groups) == 0:
+        return float("nan")
+    uniq = np.unique(groups)
+    rng = np.random.default_rng(seed)
+    rows_by_group = {g: np.flatnonzero(groups == g) for g in uniq}
+    vals = np.empty(n)
+    for b in range(n):
+        drawn = rng.choice(uniq, size=len(uniq), replace=True)
+        vals[b] = indicator(np.concatenate([rows_by_group[g] for g in drawn]))
+    finite = vals[np.isfinite(vals)]
+    return float(finite.mean()) if finite.size >= n * 0.5 else float("nan")
