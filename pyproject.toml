@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pilot0"
+version = "0.0.1"
+description = "Pilot A — reading classical audio-degradation attributes from frozen neural-codec latents"
+requires-python = ">=3.11"
+# Core deps are Mac-installable (Python 3.14) and cover everything CPU-side:
+# the fake seam, audio IO, and the anti-aliased resampler the Phase-1
+# degradation grid needs (soxr).
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "soxr>=0.3",
+    "soundfile>=0.12",
+    "pyloudnorm>=0.1",
+    "pyyaml>=6.0",
+    # Phase-4 probes: linear type/severity classifiers + metrics. CPU-only,
+    # Mac-installable (cp314 wheels), same on the GPU box — no torch involved.
+    "scikit-learn>=1.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+# GPU box ONLY — the real frozen backends. Never installed on the Mac dev
+# machine. Install with: pip install -e ".[gpu]"
+gpu = [
+    "torch>=2.2",
+    "torchaudio>=2.2",
+    "transformers>=4.40",
+    "descript-audio-codec>=1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
