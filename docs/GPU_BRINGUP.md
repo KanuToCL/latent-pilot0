@@ -109,3 +109,23 @@ gate. Confirm the report is **powered** (`n_test_groups ≥ MIN_TEST_GROUPS`, an
 practice ≫3) before reading any PASS/FAIL — an underpowered gate is not a result.
 Per §2.5, the single selected winner must then independently re-clear on the
 held-out confirmation split before Gate 1 is declared passed.
+
+## 8. Phase 5 analysis + Phase 6 Gate 2 (reference metrics)
+`make analyze` regenerates the readability heatmap, cosine matrix, and monotonicity
+curves over the full matrix — Mac-verified, box just needs the real cache. For the
+frame-level dropout probe, first run the §4 frame-norm-drop diagnostic per backend.
+
+Gate 2 needs external score TABLES this repo cannot compute on the Mac. Build them
+once, keyed by cell `"{source}|{family}|{severity}"`, and load with
+`quality.scores.TableScores.from_json`:
+- **ViSQOL** (full-reference training target; C++/bazel — §7 build risk, attempt
+  early). PESQ on the 16 kHz arm is the fallback reference target.
+- **NISQA / DNSMOS / UTMOS** — run on the degraded audio (no-reference).
+- **Human MOS** on a speech subset — the G2b ground truth. WITHOUT it, `run_gate2`
+  reports G2a only and marks G2b not-evaluable; do not substitute ViSQOL for MOS.
+```python
+from pilot0.quality.run import run_gate2
+from pilot0.quality.scores import TableScores
+report = run_gate2(man, candidates, CACHE_DIR, TableScores.from_json(SCORES_JSON))
+```
+Confirm powered before reading PASS/FAIL, same as Gate 1.

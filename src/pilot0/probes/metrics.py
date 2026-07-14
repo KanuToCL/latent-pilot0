@@ -48,18 +48,40 @@ def srcc(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(spearmanr(y_true, y_pred).statistic)
 
 
+def lcc(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Pearson linear correlation (LCC), the §2.4 secondary quality metric. nan on a
+    degenerate constant so it can't masquerade as a passing correlation."""
+    if len(y_true) < 3 or np.ptp(y_true) == 0 or np.ptp(y_pred) == 0:
+        return float("nan")
+    return float(np.corrcoef(y_true, y_pred)[0, 1])
+
+
 def bootstrap_over_groups(
-    groups: np.ndarray, stat: Callable[[np.ndarray], float], *, n: int = N_BOOTSTRAP, seed: int = 0
+    groups: np.ndarray,
+    stat: Callable[[np.ndarray], float],
+    *,
+    n: int = N_BOOTSTRAP,
+    seed: int = 0,
+    min_groups: int = 1,
 ) -> Estimate:
     """`stat(row_index)` computes the metric on a subset of rows. Resample the
     UNIQUE groups with replacement `n` times; each resample gathers all rows of the
     drawn groups (with multiplicity) → a source-level CI. Point estimate uses all
-    rows once."""
+    rows once.
+
+    `min_groups` refuses a CI (lo/hi = nan, point kept) when fewer than that many
+    distinct groups are present: with one group every resample redraws it, so the
+    interval collapses to zero width and would masquerade as a tight, trustworthy
+    bound. Callers that need cluster-level protection (per-family G2b under partial
+    coverage) pass `MIN_TEST_GROUPS`; the default 1 leaves complete-grid callers
+    (Gate 1, Phase 5) untouched."""
     if len(groups) == 0:  # a cell dropped entirely by common-rows select → undefined, not a crash
         return Estimate(point=float("nan"), lo=float("nan"), hi=float("nan"))
     order = np.arange(len(groups))
     point = stat(order)
     uniq = np.unique(groups)
+    if len(uniq) < min_groups:  # too few clusters → the resample CI is not trustworthy
+        return Estimate(point=point, lo=float("nan"), hi=float("nan"))
     rng = np.random.default_rng(seed)
     rows_by_group = {g: np.flatnonzero(groups == g) for g in uniq}
 
@@ -71,6 +93,9 @@ def bootstrap_over_groups(
     finite = vals[np.isfinite(vals)]
     if finite.size < n * 0.5:  # mostly-undefined resamples → don't trust the CI
         return Estimate(point=point, lo=float("nan"), hi=float("nan"))
+    # Uncorrected percentile interval (not BCa) — consistent across every gate in the
+    # repo; for a bounded difference-of-correlations near ±1 it can be mildly biased,
+    # which the CI-lower gating absorbs conservatively.
     return Estimate(point=point, lo=float(np.percentile(finite, 2.5)), hi=float(np.percentile(finite, 97.5)))
 
 

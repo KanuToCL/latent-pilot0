@@ -2,6 +2,64 @@
 
 Running log of choices that would otherwise be invisible in the code. Newest first.
 
+## Phase 6 — quality head & Gate 2 (2026-07-13)
+
+The no-reference quality head + the §8 Gate 2, built against the fake seam. Codec
+latents are FAKE and the ViSQOL/MOS/baseline scores are SYNTHETIC (`FakeScores`) —
+pure plumbing; the real tables come from the box. New `quality/` package.
+
+- **The rig is designed out (§8, the proposal's own elder warning).** A head trained
+  on ViSQOL must not be declared to "beat MOS-predictor incumbents" on ViSQOL — they
+  predict MOS, so they'd lose by construction. So the training target and the G2b
+  evaluation ground truth are DIFFERENT metrics, kept apart in `quality/scores.py`:
+  the head regresses **ViSQOL** (full-reference, reference-free at inference); G2b
+  scores the head AND the NR baselines (NISQA/DNSMOS/UTMOS) against **human MOS**,
+  which none of them trained on. SRCC is rank-based, so the head emitting a ViSQOL
+  scale rather than a MOS scale is fine. No MOS ⇒ G2b **NOT EVALUABLE** — it is never
+  silently scored on ViSQOL (`Scores.has(mos)` fails closed).
+- **G2a is scored on DEGRADED cells only (M2 discipline).** Clean is trivially
+  top-quality; including it in the pooled ViSQOL SRCC would inflate the number
+  without proving the head can rank degradations. Clean still anchors the head's
+  TRAINING as a legitimate high-quality point. Pre-registered: G2a = pooled
+  head-vs-ViSQOL SRCC CI-lower ≥ 0.85 over degraded test cells. Per-family SRCC is
+  ALSO reported (§2.4) though the gate keys on pooled — pooling across families adds
+  between-family rank spread that can flatter the pooled number on real ViSQOL, so the
+  per-family view is what exposes a Simpson-type inflation (physics W2).
+- **G2b is a PAIRED head-vs-baseline test on MOS.** Per family, over the same test
+  groups, the head "beats" a baseline only if the bootstrap CI-lower of
+  `srcc(head, MOS) − srcc(baseline, MOS)` is > 0 — a paired difference (shared seed →
+  identical resamples), the same rigor Phase 5 uses for the MLP−linear gap, and far
+  tighter than comparing two independent CIs. A family counts only if the head
+  paired-beats **every** baseline (beat-the-best), on ≥ 5/7 families. A family is
+  judged only if its MOS-covered test cells span ≥ `MIN_TEST_GROUPS` distinct SOURCES
+  (not merely ≥ `MIN_MOS_CELLS` rows): a partial-MOS subset can cover a family on one
+  speaker, and a cluster bootstrap over a single group collapses to a zero-width CI
+  that would clear CI-lower > 0 on single-source evidence (elder blockers — physics
+  B1 / adversarial B2). `bootstrap_over_groups` now also refuses a CI below that group
+  floor (`min_groups`), belt-and-suspenders. So a MOS SUBSET (e.g. a speech-only human
+  study) drops under-covered families instead of crashing OR passing on thin evidence;
+  G2a still runs on the full corpus. CI-lower gating + the underpowered guard are
+  reused from Gate 1, so a thin split can't pass on a point.
+- **Two machines, one seam.** `Scores` is a Protocol; `FakeScores` (Mac) synthesises
+  ViSQOL/MOS/baselines deterministically per cell — ViSQOL and MOS fall with severity
+  around a shared per-source content offset (so they correlate as in reality) but MOS
+  is family-weighted and independently noised, so recovering ViSQOL does NOT hand you
+  MOS. `TableScores` (box, BRINGUP) reads precomputed metric tables keyed by cell and
+  **rejects a MOS column that ranks ViSQOL-identically** — Spearman ≥ 0.999 over the
+  shared cells, not just byte-equality, because the gate is rank-based and a monotone
+  copy (`2·ViSQOL`, or one cell nudged) would otherwise reinstate the §8 rig it exists
+  to stop (elder blocker — adversarial B1 / physics W1).
+- **LCC added** (`metrics.lcc`, Pearson) as the §2.4 secondary next to SRCC; Gate 2
+  keys on SRCC. `make quality-demo` runs the whole path on enough sources to be
+  POWERED (past `MIN_TEST_GROUPS`), so the fake head's FAIL is a genuine clause
+  decision — random latents recover neither ViSQOL (G2a) nor paired-beat the MOS
+  predictors (G2b) — not the underpowered short-circuit masking as a result.
+- **Deferred to bring-up (needs the real tables/annotations):** the ViSQOL C++/bazel
+  build (§7 risk — attempt early; PESQ-16k arm is the fallback reference target), the
+  actual NISQA/DNSMOS/UTMOS runs, and a MOS-annotated speech subset for G2b. Absent
+  the last, Gate 2 reports G2a only and marks G2b not-evaluable — an honest partial
+  result, not a fabricated pass.
+
 ## Phase 5 — full representation matrix, elder review applied (2026-07-13)
 
 The §2.3 matrix is completed and the §2.4 analyses that don't need a reference

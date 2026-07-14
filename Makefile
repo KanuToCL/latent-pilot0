@@ -3,7 +3,7 @@ VENV := .venv
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: setup setup-gpu smoke test test-degrade manifest-demo encode-demo probe-demo analyze clean
+.PHONY: setup setup-gpu smoke test test-degrade manifest-demo encode-demo probe-demo analyze quality-demo clean
 
 # Mac dev path: torch-free. The GPU box additionally runs `make setup-gpu`.
 setup:
@@ -42,6 +42,10 @@ probe-demo:
 # Phase-5 demo: full-matrix analysis → heatmap + cosine matrix + monotonicity JSON.
 analyze:
 	$(PY) -m pilot0.analysis.audit
+
+# Phase-6 demo: quality head + NR baselines → Gate-2 table (fake latents + scores).
+quality-demo:
+	$(PY) -m pilot0.quality.audit
 
 clean:
 	rm -rf $(VENV) src/*.egg-info reports .pytest_cache
