@@ -9,12 +9,8 @@ comes from the GPU box (docs/GPU_BRINGUP.md).
 
 from __future__ import annotations
 
-import json
-import math
 import tempfile
 from pathlib import Path
-
-import numpy as np
 
 from ..audio.synth import synth_clip
 from ..corpus.io import write_audio
@@ -22,52 +18,11 @@ from ..corpus.manifest import build_manifest
 from ..corpus.preflight import preflight
 from ..encode.pipeline import encode_corpus
 from ..probes.gate1 import MIN_TEST_GROUPS
+from ..serialize import write_json
 from .run import analyze
+from .serialize import cosine_matrices, heatmap_rows, monotonicity_curves
 
 CANDIDATES = [("fake-encodec24k", "z"), ("fake-wavlm", "l12")]
-
-
-def _jsonable(obj):
-    """Serialisable + strict-JSON-safe: numpy → list, and every non-finite float
-    (NaN from a degenerate SRCC / dropped cell) → null, so `jq`/`JSON.parse` don't
-    choke on bare NaN tokens (finding S3)."""
-    if isinstance(obj, np.ndarray):
-        return _jsonable(obj.tolist())
-    if isinstance(obj, dict):
-        return {k: _jsonable(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_jsonable(v) for v in obj]
-    if isinstance(obj, float) and not math.isfinite(obj):
-        return None
-    return obj
-
-
-def _heatmap(report) -> list[dict]:
-    rows = [report.floor, report.energy, *(c.readability for c in report.candidates.values())]
-    return [
-        {"name": r.name, "variant": r.variant, "type_macro_f1": r.type_macro_f1,
-         "severity_srcc": r.severity_srcc, "n_test_groups": r.n_test_groups}
-        for r in rows
-    ]
-
-
-def _cosine(report) -> dict:
-    return {
-        key: {"labels": c.geometry.labels, "probe_cosine": c.geometry.probe_cosine,
-              "mean_cosine": c.geometry.mean_cosine,
-              "centroid_pca_explained": c.geometry.centroid_pca_explained}
-        for key, c in report.candidates.items()
-    }
-
-
-def _monotonicity(report) -> dict:
-    return {
-        key: {fam: {"srcc": (fi.srcc.point, fi.srcc.lo, fi.srcc.hi), "curve": fi.curve,
-                    "interp_frac": fi.interp_frac, "evaluable": fi.evaluable,
-                    "interpolates": fi.interpolates}
-              for fam, fi in c.interpolation.by_family.items()}
-        for key, c in report.candidates.items()
-    }
 
 
 def main(n_sources: int = 8, sr: int = 48000, out_dir: str | None = None) -> None:
@@ -83,10 +38,9 @@ def main(n_sources: int = 8, sr: int = 48000, out_dir: str | None = None) -> Non
         report = analyze(man, CANDIDATES, cache)
 
     reports = Path(out_dir) if out_dir else Path("reports") / "analysis"
-    reports.mkdir(parents=True, exist_ok=True)
-    (reports / "heatmap.json").write_text(json.dumps(_jsonable(_heatmap(report)), indent=2))
-    (reports / "cosine.json").write_text(json.dumps(_jsonable(_cosine(report)), indent=2))
-    (reports / "monotonicity.json").write_text(json.dumps(_jsonable(_monotonicity(report)), indent=2))
+    write_json(reports / "heatmap.json", heatmap_rows(report))
+    write_json(reports / "cosine.json", cosine_matrices(report))
+    write_json(reports / "monotonicity.json", monotonicity_curves(report))
 
     print("⚠  FAKE codec latents — plumbing check, NOT results (floor + energy are real)\n")
     print(f"common cells scored: {report.n_common_conditions}   artifacts → {reports}/\n")

@@ -19,16 +19,20 @@ from .scores import MOS_METRIC, Scores
 class Gate2Report:
     decisions: tuple[Gate2Decision, ...]
     mos_available: bool
+    scatter: dict[str, list]  # "name/variant" -> degraded-test (ViSQOL, head-pred) pairs, the exact points G2a scores (for F4)
 
 
 def run_gate2(
     manifest, candidates, cache_dir, scores: Scores, *, ceiling_dbfs: float = CEILING_DBFS
 ) -> Gate2Report:
     decisions = []
+    scatter: dict[str, list] = {}
     for name, variant in candidates:
         data = build_quality_data(manifest, name, variant, cache_dir, scores, ceiling_dbfs=ceiling_dbfs)
-        pred = fit_head(data)
+        pred = fit_head(data)  # one fit shared by G2a, G2b, and the F4 scatter below
+        te = (data.split == "test") & (data.severity > 0)  # the same mask evaluate_g2a scores on
+        scatter[f"{name}/{variant}"] = [[float(r), float(p)] for r, p in zip(data.ref[te], pred[te])]
         decisions.append(
             Gate2Decision(name=name, variant=variant, g2a=evaluate_g2a(data, pred), g2b=evaluate_g2b(data, pred))
         )
-    return Gate2Report(decisions=tuple(decisions), mos_available=scores.has(MOS_METRIC))
+    return Gate2Report(decisions=tuple(decisions), mos_available=scores.has(MOS_METRIC), scatter=scatter)

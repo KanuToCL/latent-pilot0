@@ -23,7 +23,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.4"]
+dev = ["pytest>=7.4", "pilot0[figures]"]
+# Paper-figure rendering (Phase 8, `make reproduce-figures`). Mac-installable,
+# pure-Python + numpy — no torch. Kept separate from core so the probe/analysis
+# path stays lean; the release step and the tests that render figures pull it in.
+figures = ["matplotlib>=3.8"]
 # GPU box ONLY — the real frozen backends. Never installed on the Mac dev
 # machine. Install with: pip install -e ".[gpu]"
 gpu = [

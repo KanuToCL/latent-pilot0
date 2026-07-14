@@ -2,6 +2,36 @@
 
 Running log of choices that would otherwise be invisible in the code. Newest first.
 
+## Phase 8 — write & release (2026-07-13)
+
+Paper scaffold + `make reproduce-figures` (F1–F6) + release checklist. New `release/`
+package with a strict JSON→PNG boundary; docs in `docs/PAPER.md` / `docs/RELEASE.md`.
+
+- **One corpus, six figures.** `release.artifacts.write_artifacts` runs analyze +
+  run_gate2 + analyze_combos + run_ood_teaser on a SINGLE synth corpus/cache, so the
+  six figures share the same sources, splits, and headroom — no cross-figure drift.
+  Each phase's report is serialised to `reports/{analysis,quality,combos,ood}/*.json`;
+  `figures.render_figures` reads ONLY the JSON, so plotting never re-runs the pipeline
+  and is testable on fixtures alone (fast) with one slow end-to-end integration test.
+- **FAKE is stamped in three places, not one.** The Mac seam's numbers are plumbing:
+  `reports/provenance.json` records `"fake": true` + git SHA, every PNG stamps the
+  banner in-frame (a stray figure can't masquerade as a result), and the demo prints
+  it. On the GPU box the real backends drop into `build_demo_corpus` unchanged.
+- **Strict JSON, shared.** `serialize.to_jsonable` (numpy→list, non-finite→null) was
+  promoted out of `analysis.audit` so the analysis demo and the release writer emit
+  byte-identical schemas; the analysis report→dict mappers moved to public
+  `analysis.serialize`. `ood.run.run_ood_teaser` was extracted from `ood.audit` so the
+  demo and the release writer share the OOD orchestration (same run/audit split as
+  every other phase).
+- **F4 scatter rides on the Gate-2 report, not a second head fit.** The pooled
+  head-vs-ViSQOL scatter needs the raw (ViSQOL, pred) pairs; `run_gate2` captures them
+  from the SAME fitted `pred` it already scores G2a on (identical `(test)&(sev>0)` mask)
+  and carries them on `Gate2Report.scatter`, so the F4 cloud is exactly the points its
+  SRCC annotates — no redundant fit, no drift risk (integration review).
+- **matplotlib is an optional `figures` extra**, pulled into `dev` (so tests render).
+  Pure-Python + numpy, Mac-installable, no torch — it stays out of the core probe path.
+  `figures.py` uses the Agg backend (headless) and errors clearly if the extra is absent.
+
 ## Phase 7 — combos & OOD teaser (2026-07-13)
 
 Pairwise degradation combos for the RQ2 additivity test, plus a no-reference
