@@ -38,7 +38,9 @@ class Gate1Report:
     n_common_conditions: int
 
 
-def _common_conditions(names) -> set[tuple[str, int]]:
+def common_conditions(names) -> set[tuple[str, int]]:
+    """Cells renderable at EVERY candidate's native rate (the apples-to-apples
+    intersection, M1). Public: Phase 5 reuses it to score the full matrix on one grid."""
     rates = {make_encoder(n).native_sr for n in names}
     return set.intersection(*(set(renderable_conditions(sr)) for sr in rates))
 
@@ -60,7 +62,7 @@ def run_gate1(
     manifest, candidates, cache_dir, *, floor=FLOOR, energy=ENERGY, ceiling_dbfs=CEILING_DBFS
 ) -> Gate1Report:
     names = [floor[0], energy[0], *(n for n, _ in candidates)]
-    common = _common_conditions(names)
+    common = common_conditions(names)
 
     def ev(name, variant):
         return evaluate_encoder(manifest, name, variant, cache_dir, common, ceiling_dbfs=ceiling_dbfs)

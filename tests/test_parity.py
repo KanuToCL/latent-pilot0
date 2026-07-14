@@ -16,7 +16,7 @@ from pilot0.seam.registry import REAL_SPECS, make_encoder
 
 pytest.importorskip("torch", reason="real backends require torch (GPU box only)")
 
-_RUNNABLE = ["encodec24k", "wavlm"]  # dac/mimi wired at bring-up (Phase 5)
+_RUNNABLE = ["encodec24k", "wavlm", "dac44k", "mimi"]  # all four wired; torch-gated, box-only
 _META_KEYS = {"backend", "name", "variant", "native_sr", "latent_dim", "n_frames"}
 
 

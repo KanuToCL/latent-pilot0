@@ -26,7 +26,9 @@ class TypeResult:
     n_test: int
 
 
-def _linear_classifier() -> object:
+def linear_classifier() -> object:
+    """The type probe's standardise→multinomial-logistic pipeline. Public: the MLP
+    probe reuses it as the linear baseline so the nonlinearity gap has one source."""
     return make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000, C=1.0, random_state=0))
 
 
@@ -36,7 +38,7 @@ def evaluate_type_probe(data: ProbeData) -> TypeResult:
     te = degraded & (data.split == "test")
     labels = sorted(set(data.family[degraded].tolist()))
 
-    clf = _linear_classifier().fit(data.X[tr], data.family[tr])
+    clf = linear_classifier().fit(data.X[tr], data.family[tr])
     y_true, y_pred, groups = data.family[te], clf.predict(data.X[te]), data.group[te]
 
     est = bootstrap_over_groups(groups, lambda idx: macro_f1(y_true[idx], y_pred[idx], labels))

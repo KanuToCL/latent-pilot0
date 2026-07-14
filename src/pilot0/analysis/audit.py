@@ -18,6 +18,7 @@ from ..corpus.manifest import build_manifest
 from ..corpus.preflight import preflight
 from ..encode.pipeline import encode_corpus
 from ..probes.gate1 import MIN_TEST_GROUPS
+from ..provenance import is_fake, provenance
 from ..serialize import write_json
 from .run import analyze
 from .serialize import cosine_matrices, heatmap_rows, monotonicity_curves
@@ -41,6 +42,10 @@ def main(n_sources: int = 8, sr: int = 48000, out_dir: str | None = None) -> Non
     write_json(reports / "heatmap.json", heatmap_rows(report))
     write_json(reports / "cosine.json", cosine_matrices(report))
     write_json(reports / "monotonicity.json", monotonicity_curves(report))
+    # co-located fake marker so a demo heatmap.json can't pass as a real-box one
+    write_json(reports / "provenance.json", provenance(
+        fake=is_fake(CANDIDATES), note="codec rows fake; log-mel floor + energy control are real",
+        n_sources=n_sources, candidates=[f"{n}/{v}" for n, v in CANDIDATES]))
 
     print("⚠  FAKE codec latents — plumbing check, NOT results (floor + energy are real)\n")
     print(f"common cells scored: {report.n_common_conditions}   artifacts → {reports}/\n")

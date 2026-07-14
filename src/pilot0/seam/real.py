@@ -93,7 +93,11 @@ class RealCodecEncoder:
         elif self.family == "dac":
             import dac
 
-            self._model = dac.DAC.load(dac.utils.download(model_type="44khz")).eval().to(self._device)
+            # DAC ships its own downloader keyed by rate tag ("44khz"/"24khz"/"16khz"),
+            # not an HF checkpoint string — derive it from native_sr so the spec is
+            # authoritative (the `checkpoint` field is a nominal mirror for DAC).
+            model_type = f"{round(self.native_sr / 1000)}khz"
+            self._model = dac.DAC.load(dac.utils.download(model_type=model_type)).eval().to(self._device)
         elif self.family == "mimi":
             from transformers import MimiModel
 
@@ -202,7 +206,7 @@ class RealCodecEncoder:
             "name": self.name,
             "variant": variant,
             "native_sr": self.native_sr,
-            "latent_dim": self.latent_dim,
+            "latent_dim": int(frames.shape[1]),  # ACTUAL dim, not the nominal spec (sidecar honesty)
             "n_frames": int(frames.shape[0]),
             "checkpoint": self.checkpoint,
             "device": self._device,

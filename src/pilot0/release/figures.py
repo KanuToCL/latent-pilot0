@@ -11,7 +11,8 @@ from pathlib import Path
 
 import numpy as np
 
-from .artifacts import BANNER, CANDIDATES
+from ..provenance import BANNER
+from .artifacts import CANDIDATES
 
 try:
     import matplotlib

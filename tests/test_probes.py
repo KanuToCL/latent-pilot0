@@ -16,7 +16,9 @@ from pilot0.degrade.grid import FAMILIES
 from pilot0.encode.pipeline import encode_corpus
 from pilot0.probes.dataset import ProbeData, build_probe_data
 from pilot0.probes.gate1 import MIN_TEST_GROUPS, Gate1Decision
-from pilot0.probes.metrics import Estimate, bootstrap_over_groups, macro_f1, srcc
+from pilot0.probes.metrics import (
+    Estimate, bootstrap_fraction, bootstrap_over_groups, macro_f1, srcc,
+)
 from pilot0.probes.run import run_gate1
 from pilot0.probes.severity import FamilySeverity, SeverityResult, evaluate_severity_probes
 from pilot0.probes.type_probe import TypeResult, evaluate_type_probe
@@ -100,6 +102,27 @@ def test_type_probe_collapses_on_pure_noise():
     assert evaluate_type_probe(_fabricate(noise=50.0, seed=1)).macro_f1.point < 0.6
 
 
+# --- fail-closed bootstrap primitives (the floors every gate inherits) ---------
+
+
+def test_bootstrap_over_groups_fails_closed_on_thin_evidence():
+    # empty rows → undefined, not a crash
+    empty = bootstrap_over_groups(np.array([]), lambda i: 1.0)
+    assert np.isnan(empty.lo) and np.isnan(empty.hi)
+    # one group under a 3-group floor → CI collapses to nan (winner's-curse guard)
+    one_group = bootstrap_over_groups(np.zeros(20, int), lambda i: 0.99, min_groups=MIN_TEST_GROUPS)
+    assert one_group.point == 0.99 and np.isnan(one_group.lo) and np.isnan(one_group.hi)
+    # >50% of resamples undefined (nan) → CI not trusted even with enough groups
+    mostly_nan = bootstrap_over_groups(np.arange(10), lambda i: float("nan"))
+    assert np.isnan(mostly_nan.lo) and np.isnan(mostly_nan.hi)
+
+
+def test_bootstrap_fraction_fails_closed_below_group_floor():
+    # a single source ordering "always holds" must NOT read as a reliable fraction
+    assert np.isnan(bootstrap_fraction(np.zeros(15, int), lambda i: 1.0, min_groups=MIN_TEST_GROUPS))
+    assert np.isnan(bootstrap_fraction(np.array([]), lambda i: 1.0))
+
+
 # --- gate 1 decision logic ----------------------------------------------------
 
 
@@ -138,6 +161,22 @@ def test_gate1_underpowered_cannot_pass():
     dec = _decision(0.95, {f: 0.95 for f in FAMS}, {f: 0.0 for f in FAMS}, floor_pt=0.50,
                     n_groups=MIN_TEST_GROUPS - 1)
     assert dec.underpowered and dec.pass_type and dec.pass_severity and not dec.passed
+
+
+def test_gate1_exact_thresholds_pass_by_ge():
+    # every §8 clause sits EXACTLY on its pre-registered threshold; the gate uses `>=`,
+    # so a regression flipping any `>=` to `>` would flip this to fail.
+    from pilot0.probes.gate1 import (
+        FLOOR_F1_MARGIN, SEVERITY_OVER_ENERGY_MARGIN, SEVERITY_SRCC_MIN, TYPE_MACRO_F1_MIN,
+    )
+    dec = _decision(
+        TYPE_MACRO_F1_MIN,                                              # type lo == min
+        {f: SEVERITY_SRCC_MIN for f in FAMS},                          # severity lo == min
+        {f: SEVERITY_SRCC_MIN - SEVERITY_OVER_ENERGY_MARGIN for f in FAMS},  # beats energy by exactly the margin
+        floor_pt=TYPE_MACRO_F1_MIN - FLOOR_F1_MARGIN,                  # floor margin == FLOOR_F1_MARGIN
+    )
+    assert dec.pass_type and dec.pass_severity and dec.pass_floor and dec.passed
+    assert dec.n_severity_pass == 7
 
 
 # --- baseline encoders --------------------------------------------------------

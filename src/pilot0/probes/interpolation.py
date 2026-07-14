@@ -31,6 +31,7 @@ from sklearn.preprocessing import StandardScaler
 
 from ..degrade.grid import FAMILIES
 from .dataset import ProbeData
+from .gate1 import MIN_TEST_GROUPS
 from .metrics import Estimate, bootstrap_fraction, bootstrap_over_groups, srcc
 
 HELD_OUT_SEVERITY = 3
@@ -121,9 +122,10 @@ def evaluate_interpolation(data: ProbeData) -> InterpolationResult:
         curve = _curve(y_true, y_pred)
         evaluable = all(np.isfinite(curve[lvl]) for lvl in (NEIGHBOURS[0], HELD_OUT_SEVERITY, NEIGHBOURS[1]))
         by_family[fam] = FamilyInterpolation(
-            srcc=bootstrap_over_groups(groups, lambda i: srcc(y_true[i], y_pred[i])),
+            srcc=bootstrap_over_groups(groups, lambda i: srcc(y_true[i], y_pred[i]), min_groups=MIN_TEST_GROUPS),
             curve=curve,
-            interp_frac=bootstrap_fraction(groups, _ordering_indicator(y_true, y_pred)) if evaluable else float("nan"),
+            interp_frac=bootstrap_fraction(groups, _ordering_indicator(y_true, y_pred), min_groups=MIN_TEST_GROUPS)
+            if evaluable else float("nan"),
             evaluable=evaluable,
         )
     return InterpolationResult(by_family=by_family)

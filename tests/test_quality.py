@@ -132,6 +132,29 @@ def test_tablescores_rejects_monotone_copy_of_visqol(tmp_path):
         TableScores.from_json(p)
 
 
+def test_tablescores_rejects_nonfinite_score_cell(tmp_path):
+    # adversarial: a single NaN cell used to blank the rank guard (srcc→nan), letting a
+    # monotone ViSQOL copy through. The NaN is now rejected at parse.
+    ref = {f"s0|noise|{s}": 1.0 + 0.3 * s for s in range(12)}
+    mos = {k: 2.0 * v + 1.0 for k, v in ref.items()}
+    mos["s0|noise|0"] = float("nan")  # the poison cell (json.dumps writes the NaN token)
+    p = tmp_path / "nan_rig.json"
+    p.write_text(json.dumps({"visqol": ref, "mos": mos}))
+    with pytest.raises(ValueError, match="non-finite"):
+        TableScores.from_json(p)
+
+
+def test_reject_rig_masks_nonfinite_before_rank_check():
+    # belt-and-suspenders: even if a non-finite pair reached _reject_rig, the rank check
+    # runs on the FINITE subset and still catches the monotone copy (not blanked to nan).
+    from pilot0.quality.scores import MOS_METRIC, REF_METRIC
+    ref = {("s0", "noise", s): 1.0 + 0.3 * s for s in range(12)}
+    mos = {c: 2.0 * v + 1.0 for c, v in ref.items()}
+    mos[("s0", "noise", 0)] = float("nan")
+    with pytest.raises(ValueError, match="rig"):
+        TableScores._reject_rig({REF_METRIC: ref, MOS_METRIC: mos})
+
+
 def test_build_quality_data_requires_reference_target():
     # No ViSQOL column ⇒ the head has nothing to train on; fail clean, not a deep
     # KeyError inside the cache walk (adversarial W1). Raises before touching the cache.

@@ -18,7 +18,7 @@ from ..probes.dataset import build_probe_data
 from ..probes.frame_dropout import FrameDropoutResult, evaluate_frame_dropout
 from ..probes.interpolation import InterpolationResult, evaluate_interpolation
 from ..probes.mlp_probe import NonlinearityResult, evaluate_nonlinearity
-from ..probes.run import EncoderProbeResult, _common_conditions
+from ..probes.run import EncoderProbeResult, common_conditions
 from ..probes.severity import evaluate_severity_probes
 from ..probes.type_probe import evaluate_type_probe
 from .geometry import GeometryResult, geometry
@@ -77,7 +77,7 @@ def analyze(
     manifest, candidates, cache_dir, *, floor=FLOOR, energy=ENERGY, ceiling_dbfs=CEILING_DBFS
 ) -> AnalysisReport:
     names = [floor[0], energy[0], *(n for n, _ in candidates)]
-    common = _common_conditions(names)
+    common = common_conditions(names)
     energy_data = _selected_data(manifest, *energy, cache_dir, common, ceiling_dbfs)
     return AnalysisReport(
         floor=_readability_only(manifest, *floor, cache_dir, common, ceiling_dbfs),

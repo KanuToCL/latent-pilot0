@@ -100,16 +100,21 @@ def bootstrap_over_groups(
 
 
 def bootstrap_fraction(
-    groups: np.ndarray, indicator: Callable[[np.ndarray], float], *, n: int = N_BOOTSTRAP, seed: int = 0
+    groups: np.ndarray, indicator: Callable[[np.ndarray], float], *, n: int = N_BOOTSTRAP,
+    seed: int = 0, min_groups: int = 1,
 ) -> float:
     """Fraction of TEST-GROUP resamples in which `indicator(row_index)` holds (returns
     1.0 / 0.0, or nan when undefined on that resample → dropped). Returns nan if the
     indicator is undefined on more than half the resamples — the same trust floor as
-    the CI. Used where the summary wanted is a probability of an ordering, for which a
-    percentile CI is the wrong shape."""
+    the CI. `min_groups` mirrors `bootstrap_over_groups`: fewer than that many distinct
+    groups → nan, so a single-source ordering can't masquerade as a reliable fraction.
+    Used where the summary wanted is a probability of an ordering, for which a percentile
+    CI is the wrong shape."""
     if len(groups) == 0:
         return float("nan")
     uniq = np.unique(groups)
+    if len(uniq) < min_groups:  # too few clusters → the fraction is not trustworthy
+        return float("nan")
     rng = np.random.default_rng(seed)
     rows_by_group = {g: np.flatnonzero(groups == g) for g in uniq}
     vals = np.empty(n)

@@ -18,6 +18,8 @@ def hiss(wav: np.ndarray, sr: int, hf_snr_db: float, corner_hz: float = 4000.0, 
     rng = np.random.default_rng(seed)
     noise = rng.standard_normal(len(wav))
     nyq = sr / 2.0
+    if corner_hz >= nyq:  # would collapse the (corner, nyq) SNR band → pn≈0 → gain blows up (mirror band-limit's guard)
+        raise ValueError(f"hiss corner {corner_hz} Hz ≥ Nyquist {nyq} Hz at sr={sr}; needs an above-corner band")
     wc = min(corner_hz / nyq, 0.99)
     b, a = butter(4, wc, btype="high")
     noise = filtfilt(b, a, noise)  # zero-phase → hiss concentrated above corner

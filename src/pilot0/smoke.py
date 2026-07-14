@@ -2,19 +2,22 @@
 representations the GPU box will really run, across all their variants, and log
 the latent shapes. Acceptance (§3 Phase 0): shapes logged for 10 clips.
 
-On the box, point SMOKE_ENCODERS at the bare names and the same code validates
-the real backends.
+On the box, set PILOT0_SMOKE_ENCODERS to the bare names (comma-separated) and the
+same code validates the real backends — e.g.
+`PILOT0_SMOKE_ENCODERS=encodec24k,wavlm,dac44k,mimi make smoke`.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from .audio.synth import synth_batch
 from .seam.registry import available_encoders, make_encoder
 
-SMOKE_ENCODERS = ["fake-encodec24k", "fake-wavlm"]
+# Env-overridable so the box can shape-check the real backends without a source edit.
+SMOKE_ENCODERS = os.environ.get("PILOT0_SMOKE_ENCODERS", "fake-encodec24k,fake-wavlm").split(",")
 
 
 def run(n: int = 10, sr: int = 48000, seconds: float = 4.0) -> list[dict]:

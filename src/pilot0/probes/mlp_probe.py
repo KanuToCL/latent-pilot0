@@ -16,7 +16,7 @@ from sklearn.preprocessing import StandardScaler
 
 from .dataset import CLEAN, ProbeData
 from .metrics import Estimate, bootstrap_over_groups, macro_f1
-from .type_probe import _linear_classifier
+from .type_probe import linear_classifier
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ def evaluate_nonlinearity(data: ProbeData) -> NonlinearityResult:
     te = degraded & (data.split == "test")
     labels = sorted(set(data.family[degraded].tolist()))
 
-    lin = _linear_classifier().fit(data.X[tr], data.family[tr])
+    lin = linear_classifier().fit(data.X[tr], data.family[tr])
     mlp = _mlp_classifier().fit(data.X[tr], data.family[tr])
     y_true, groups = data.family[te], data.group[te]
     y_lin, y_mlp = lin.predict(data.X[te]), mlp.predict(data.X[te])

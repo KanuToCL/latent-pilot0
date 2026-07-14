@@ -14,8 +14,9 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+from ..provenance import BANNER
 from ..quality.scores import FakeScores
-from .artifacts import BANNER, CANDIDATES, build_demo_corpus, write_artifacts
+from .artifacts import CANDIDATES, build_demo_corpus, write_artifacts
 from .figures import render_figures
 
 

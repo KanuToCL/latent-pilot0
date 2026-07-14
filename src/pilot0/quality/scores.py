@@ -124,9 +124,12 @@ class TableScores:
             for k, v in cells.items():
                 try:
                     source, family, sev = k.split("|")
-                    table[m][(source, family, int(sev))] = float(v)
+                    fv = float(v)
                 except (ValueError, TypeError) as e:
                     raise ValueError(f"malformed '{m}' score cell key {k!r} = {v!r}: {e}") from e
+                if not np.isfinite(fv):  # a NaN/Inf cell would blank the rank rig-guard below (adversarial)
+                    raise ValueError(f"non-finite '{m}' score {v!r} at cell {k!r} — reject NaN/Inf")
+                table[m][(source, family, int(sev))] = fv
         cls._reject_rig(table)
         return cls(table=table)
 
@@ -149,17 +152,19 @@ class TableScores:
         if REF_METRIC not in table or MOS_METRIC not in table:
             return
         shared = sorted(set(table[REF_METRIC]) & set(table[MOS_METRIC]))
-        if not shared:
-            return
         ref_v = np.array([table[REF_METRIC][c] for c in shared], dtype=float)
         mos_v = np.array([table[MOS_METRIC][c] for c in shared], dtype=float)
+        finite = np.isfinite(ref_v) & np.isfinite(mos_v)  # a single non-finite pair must not blank the rank check
+        ref_v, mos_v = ref_v[finite], mos_v[finite]
+        if ref_v.size == 0:
+            return
         if np.array_equal(ref_v, mos_v):
             raise ValueError("MOS table is byte-identical to ViSQOL — that re-introduces the §8 rig")
-        if len(shared) >= _RIG_MIN_SHARED:
+        if ref_v.size >= _RIG_MIN_SHARED:
             rho = srcc(ref_v, mos_v)
             if np.isfinite(rho) and rho >= _RIG_RANK_CORR_MAX:
                 raise ValueError(
-                    f"MOS ranks ViSQOL-identically over {len(shared)} shared cells "
+                    f"MOS ranks ViSQOL-identically over {ref_v.size} shared cells "
                     f"(Spearman {rho:.4f} ≥ {_RIG_RANK_CORR_MAX}) — a monotone copy re-introduces the §8 rig"
                 )
 

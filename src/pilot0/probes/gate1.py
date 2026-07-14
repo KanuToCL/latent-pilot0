@@ -6,7 +6,9 @@ test split, it:
   G1b  reads severity      — without-clean SRCC CI-lower ≥ 0.80 on ≥ 4/7 families
                              AND beats the energy control by ≥ 0.05 on each (so the
                              ordinal signal is not just loudness — finding B1)
-  G1c  beats the mel floor — type macro-F1 CI-lower exceeds the floor point by ≥ 0.05
+  G1c  beats the mel floor — type macro-F1 CI-lower exceeds the floor CI-UPPER by ≥ 0.05
+                             (conservative vs the §8 "point" wording, so a lucky-low
+                             floor point can't gift the margin — finding N2)
 
 All thresholds use the CI LOWER bound, so a lucky point estimate cannot pass
 (B2/M3). A split with fewer than MIN_TEST_GROUPS test sources is UNDERPOWERED and

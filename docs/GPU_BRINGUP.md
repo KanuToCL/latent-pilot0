@@ -52,9 +52,9 @@ in the installed library version, fix it in the relevant `_encode_*` helper — 
 `LatentResult` contract and everything downstream are unchanged.
 
 ## 4. Smoke on real encoders
-Point `SMOKE_ENCODERS` at the bare names and:
+Point `SMOKE_ENCODERS` at the bare names via the env override (no source edit) and:
 ```bash
-make smoke
+PILOT0_SMOKE_ENCODERS=encodec24k,wavlm,dac44k,mimi make smoke
 ```
 Expect all four available: True (each family's backend lib installed) and shapes
 logged across variants.
@@ -80,7 +80,11 @@ Multi-clip corpora share a speaker/track across many clips. Preflight MUST get a
 speaker/track `group_fn`, and `build_manifest` MUST be called with
 `assert_grouped=True`, or the source-disjoint split leaks speaker identity into
 both train and test and **invalidates Gate 1** (§2.5, elder W1). `assert_grouped`
-fails closed if every clip ended up its own group (i.e. the `group_fn` was wrong).
+fails closed if every clip ended up its own group (i.e. the `group_fn` was forgotten),
+but it CANNOT catch a `group_fn` that buckets by the WRONG field (e.g. chapter instead
+of speaker) — that still leaks. **Eyeball the clips-per-group distribution** after
+building: a correct speaker grouping shows many clips per group; a near-1.0 mean or a
+count matching the file count means the field is wrong.
 ```python
 from pilot0.corpus.preflight import preflight
 from pilot0.corpus.manifest import build_manifest, write_manifest
@@ -90,6 +94,10 @@ pf = preflight(RAW_DIR, OUT_DIR, group_fn=lambda p: p.stem.split("_")[0])
 man = build_manifest(pf, assert_grouped=True)     # raises if grouping was forgotten
 write_manifest(man, OUT_DIR / "manifest.json")
 ```
+**SNR-label caveat (physics):** additive-family SNR labels use full-file RMS, not
+P.56 active-speech level, so absolute SNR reads ~`10·log10(activity)` dB optimistic on
+speech (`degrade/base.py`). Within-family severity is monotone and unaffected — the
+gates key on that — but quantify the absolute bias here if any absolute-SNR claim is made.
 
 ## 6. Encode the real corpus — codecs AND both baselines
 Gate 1 needs the log-mel floor and the energy control in the cache alongside the
@@ -117,7 +125,11 @@ frame-level dropout probe, first run the §4 frame-norm-drop diagnostic per back
 
 Gate 2 needs external score TABLES this repo cannot compute on the Mac. Build them
 once, keyed by cell `"{source}|{family}|{severity}"`, and load with
-`quality.scores.TableScores.from_json`:
+`quality.scores.TableScores.from_json`. **`{source}` is the manifest row's `source`
+token** (the opaque `content_token` preflight assigns, `manifest.py`), NOT the original
+or degraded-wav filename — a filename-keyed table returns `None` for every cell, drops
+every row, and fits the head on an empty design. `from_json` rejects any non-finite
+(NaN/Inf) score cell (it would blank the §8 rank rig-guard):
 - **ViSQOL** (full-reference training target; C++/bazel — §7 build risk, attempt
   early). PESQ on the 16 kHz arm is the fallback reference target.
 - **NISQA / DNSMOS / UTMOS** — run on the degraded audio (no-reference).

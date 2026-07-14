@@ -24,8 +24,9 @@ from pilot0.quality.gate2 import Gate2Decision
 from pilot0.quality.head import QualityG2a
 from pilot0.quality.run import Gate2Report
 from pilot0.quality.scores import FakeScores
+from pilot0.provenance import BANNER, is_fake, provenance
 from pilot0.release.artifacts import (
-    BANNER, CANDIDATES, _additivity_json, _gate2_json, _ood_json,
+    CANDIDATES, _additivity_json, _gate2_json, _ood_json,
     build_demo_corpus, write_artifacts,
 )
 import matplotlib.pyplot as plt  # figures.py already selected the Agg backend on import
@@ -230,6 +231,14 @@ def test_ood_serializer_renders_f6(tmp_path):
 
 def test_banner_marks_outputs_fake():
     assert "FAKE" in BANNER and "NOT results" in BANNER
+
+
+def test_provenance_fake_flag_is_derived_not_hardcoded():
+    # the byte-indistinguishable persisted artifact must not be able to lie about being fake
+    assert is_fake([("fake-encodec24k", "z"), ("fake-wavlm", "l12")]) is True
+    assert is_fake([("encodec24k", "z"), ("wavlm", "l12")]) is False
+    assert provenance(fake=True)["fake"] is True and provenance(fake=False)["fake"] is False
+    assert provenance(fake=True)["banner"] == BANNER
 
 
 # The full-corpus mirror of `make reproduce-figures`: real fake-seam encode → all six

@@ -2,6 +2,49 @@
 
 Running log of choices that would otherwise be invisible in the code. Newest first.
 
+## Final 5-elder ring — whole-repo completion pass (2026-07-13)
+
+Physics, adversarial, architect, testing, integration reviewed the complete repo.
+Physics/architect/integration APPROVED; adversarial APPROVED-with-concerns; testing
+CHANGES (one false-green). All recommendations applied (with two reasoned exceptions):
+
+- **Rig-guard NaN fail-OPEN closed (adversarial).** `TableScores.from_json` now rejects
+  any non-finite score cell at parse, and `_reject_rig` masks to finite shared pairs
+  before the rank check — a single `NaN` cell could previously blank `srcc→nan` and let
+  a monotone `2·ViSQOL+1` MOS copy through, re-introducing the §8 rig. The one genuine
+  fail-open in the integrity chain; regression-tested both ways.
+- **Parity contract armed for dac/mimi (testing BLOCKER + integration, convergent).**
+  `test_parity._RUNNABLE` now includes `dac44k`/`mimi` (torch-gated, box-only), so
+  `pytest -k parity` actually guards their D6 latent-dim/variant reconciliation — the
+  runbook told the operator it did, but it silently skipped the two families most likely
+  to need an API touch-up.
+- **Provenance is derived, not hand-set (adversarial).** New leaf `provenance.py`
+  (`BANNER` + `is_fake` + `provenance`); the persisted `fake` flag is derived from the
+  candidate encoders (`fake-*` prefix), so a byte-indistinguishable JSON artifact can't
+  lie. `make analyze` now co-locates a `provenance.json` like the release bundle does.
+- **Barrels + public promotion (architect).** The five newest packages (analysis/quality/
+  combos/ood/release) gained `__all__` barrels matching the Phase 1-4 grain; `release`'s
+  barrel exports only the matplotlib-free artifact API (figures/reproduce imported
+  explicitly, keeping the extra off any JSON-only path). `probes.run._common_conditions`
+  → public `common_conditions` and `type_probe._linear_classifier` → `linear_classifier`,
+  since both are reused across module boundaries.
+- **RQ5 interpolation fail-closed floor (physics).** `interpolation` now passes
+  `min_groups=MIN_TEST_GROUPS` (and `bootstrap_fraction` gained the floor), so a
+  single-source family can't report `interpolates=True` on one test group.
+- **Bring-up ergonomics.** `SMOKE_ENCODERS` is env-overridable (`PILOT0_SMOKE_ENCODERS`)
+  per the runbook; the DAC loader derives its rate tag from `native_sr` (the spec is
+  authoritative, not a magic `"44khz"`); `_pack` records the ACTUAL latent dim; hiss
+  gained a Nyquist guard; the gate1 docstring now matches the (more conservative) code.
+  `docs/GPU_BRINGUP.md` clarified: `{source}` is the manifest token, group sizes need an
+  eyeball, and the P.56 SNR-label caveat.
+- **Deferred, with reason:** (1) retrofitting the six per-phase demos onto one shared
+  synth-corpus helper (architect, demo-only) — the correct home is a new leaf (phase
+  demos must not depend on `release`), and each demo's `n_sources`/encoder-set is tuned
+  on purpose, so the regression risk on blessed code exceeds the demo-only DRY win.
+  (2) flipping the global `bootstrap_over_groups` default to `MIN_TEST_GROUPS` (adversarial)
+  — that constant lives in `gate1` and `metrics` can't import it without a cycle; the
+  targeted interpolation fix covers the one flagged non-gate path.
+
 ## Phase 8 — write & release (2026-07-13)
 
 Paper scaffold + `make reproduce-figures` (F1–F6) + release checklist. New `release/`

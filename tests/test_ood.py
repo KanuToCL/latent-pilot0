@@ -59,9 +59,12 @@ def test_ood_baselines_diverge_and_are_bounded():
     assert s.get("nisqa", "ood3") == s.get("nisqa", "ood3")  # deterministic
 
 
-def test_ood_teaser_amplifies_disagreement():
-    grid = _fab_grid()
-    ood_X = np.random.default_rng(1).standard_normal((12, 8))  # off the training manifold
+@pytest.mark.parametrize("seed", [0, 1, 2, 3])
+def test_ood_teaser_amplifies_disagreement(seed):
+    # assert the STRUCTURAL property (off-manifold latents → more metric disagreement)
+    # over several independent (grid, OOD) draws, not one lucky seeded matrix.
+    grid = _fab_grid(seed=seed)
+    ood_X = np.random.default_rng(100 + seed).standard_normal((12, 8))  # off the training manifold
     t = ood_teaser(grid, ood_X, [f"ood{i}" for i in range(12)], OODNRScores())
     assert t.metrics == ("head", *NR_BASELINES)
     assert t.ood_disagreement > t.grid_disagreement and t.ood_amplifies_disagreement

@@ -11,10 +11,9 @@ and the same writer emits the scientific artifacts unchanged.
 
 from __future__ import annotations
 
-import datetime as _dt
-import subprocess
 from pathlib import Path
 
+from ..provenance import is_fake, provenance
 from ..analysis.run import analyze
 from ..analysis.serialize import cosine_matrices, heatmap_rows, monotonicity_curves
 from ..audio.synth import synth_clip
@@ -29,7 +28,6 @@ from ..quality.run import run_gate2
 from ..quality.scores import Scores
 from ..serialize import write_json
 
-BANNER = "⚠ FAKE latents + synthetic scores — plumbing, NOT results"
 CANDIDATES = [("fake-encodec24k", "z"), ("fake-wavlm", "l12")]
 
 
@@ -107,22 +105,13 @@ def _ood_json(ood_report) -> dict:
     }
 
 
-def _git_sha() -> str | None:
-    try:
-        return subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True,
-                              text=True, timeout=5).stdout.strip() or None
-    except Exception:
-        return None
-
-
-def _provenance(n_sources: int, sr: int, candidates) -> dict:
-    return {"fake": True, "banner": BANNER,
-            "note": "Fake codec latents + synthetic ViSQOL/MOS + fabricated NR incumbents. "
-                    "Plumbing check on the Mac dev seam; the scientific run is the GPU box "
-                    "(docs/GPU_BRINGUP.md).",
-            "generated": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
-            "git_sha": _git_sha(), "n_sources": n_sources, "sample_rate": sr,
-            "candidates": [f"{n}/{v}" for n, v in candidates]}
+def _provenance(candidates, n_sources: int, sr: int) -> dict:
+    return provenance(
+        fake=is_fake(candidates),
+        note="Synthetic ViSQOL/MOS + fabricated NR incumbents on this seam; the "
+             "scientific run is the GPU box (docs/GPU_BRINGUP.md).",
+        n_sources=n_sources, sample_rate=sr,
+        candidates=[f"{n}/{v}" for n, v in candidates])
 
 
 def write_artifacts(
@@ -142,5 +131,5 @@ def write_artifacts(
         "additivity": write_json(out_dir / "combos" / "additivity.json", _additivity_json(combos)),
         "transfer": write_json(out_dir / "combos" / "transfer.json", _transfer_json(combos)),
         "ood": write_json(out_dir / "ood" / "teaser.json", _ood_json(ood)),
-        "provenance": write_json(out_dir / "provenance.json", _provenance(n_sources, sr, candidates)),
+        "provenance": write_json(out_dir / "provenance.json", _provenance(candidates, n_sources, sr)),
     }
