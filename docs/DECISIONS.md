@@ -2,6 +2,48 @@
 
 Running log of choices that would otherwise be invisible in the code. Newest first.
 
+## Phase 7 — combos & OOD teaser (2026-07-13)
+
+Pairwise degradation combos for the RQ2 additivity test, plus a no-reference
+metric-disagreement OOD teaser. Fake latents ⇒ plumbing; the real combo/OOD renders
+come from the box. New `combos/` and `ood/` packages.
+
+- **Combos share the singles' cache AND the L4 scalar.** `encode_combos` renders
+  leg A then leg B (ordered — degradations do not commute) at a shared MID severity
+  into the SAME Phase-3 cache, keyed by family `A+B`, reusing the corpus headroom
+  scalar so z̄(a+b) is directly comparable to z̄(a)/z̄(b)/z̄(clean) — a different scalar
+  would rotate the displacement vectors and corrupt the cosine. Runs after
+  `encode_corpus` (headroom + singles already on disk); resume-safe. To reuse the
+  scalar without duplicating the path convention, `encode/pipeline`'s headroom + master
+  loaders were promoted to public (`resolve_headroom`/`headroom_path`/`memoized_master_loader`).
+- **Additivity is a cosine, reported in BOTH bases.** cos(z̄(a+b)−z̄(clean), Δa+Δb),
+  primary in the RAW pooled-latent space (the proposal's z̄ — a superposition test
+  lives in the codec's own metric, and raw avoids the noise blow-up standardisation
+  inflicts on near-constant latent channels), and `cosine_std` in the standardised
+  basis (scaler on the degraded singles, equal-weighting dims so a few high-energy
+  channels can't set the verdict) — the answer is basis-dependent, so both ship
+  (physics review). The cosine constrains DIRECTION only: ≈1 ⇒ the combo is
+  CODIRECTIONAL with Δa+Δb, not equal to it. Each cell is restricted to the sources
+  present in all of a/b/ab so the role-centroids share one population. Source-level
+  bootstrap CI (the `min_groups` floor reused from Gate 1 / Phase 6). Descriptive, not
+  gated.
+- **Zero-shot transfer.** The single-degradation linear type probe (train split)
+  predicts held-out TEST combos; report the predicted single-family distribution and
+  the fraction landing on a constituent leg (does noise×clip read as noise or clip?).
+  Descriptive.
+- **OOD teaser is real analysis on a fake data source.** Off-manifold textures (FM,
+  granular, noise-band, chirp — deliberately not clean-speech-plus-degradation) are
+  encoded and scored by the REAL grid-fit head (clipped to [1,5], a bounded quality
+  scale — its off-manifold blow-up is itself the OOD-unreliability signal); the
+  incumbent columns are FABRICATED (`ood.scores`, each with a different systematic OOD
+  bias). All metrics share the 1–5 scale, so per-clip disagreement is the std across
+  them in that RAW shared space after CENTERING each on its grid mean (removing only a
+  calibration offset) — NOT dividing by each metric's own grid std, which would
+  manufacture spread from a common off-grid drift and make "OOD > grid" a normalization
+  artifact (physics review). Motivation only (F6), NO claims; real generative renders +
+  real NISQA/DNSMOS/UTMOS replace the fabricated columns at bring-up, disagreement math
+  unchanged.
+
 ## Phase 6 — quality head & Gate 2 (2026-07-13)
 
 The no-reference quality head + the §8 Gate 2, built against the fake seam. Codec

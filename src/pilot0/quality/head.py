@@ -38,11 +38,17 @@ def _head() -> object:
     return make_pipeline(StandardScaler(), Ridge(alpha=1.0))
 
 
-def fit_head(data: QualityData) -> np.ndarray:
-    """Fit on the training split (clean included as the high-quality anchor) and
-    return predictions for EVERY row, so G2a and G2b share one fit."""
+def fit_head_model(data: QualityData):
+    """The fitted head (StandardScaler→Ridge) trained on the training split, clean
+    included as the high-quality anchor. Returned as an estimator so callers outside
+    the grid (the Phase-7 OOD teaser) can `.predict` on latents the gate never saw."""
     tr = data.split == "train"
-    return _head().fit(data.X[tr], data.ref[tr]).predict(data.X)
+    return _head().fit(data.X[tr], data.ref[tr])
+
+
+def fit_head(data: QualityData) -> np.ndarray:
+    """Predictions for EVERY row from one fit, so G2a and G2b share it."""
+    return fit_head_model(data).predict(data.X)
 
 
 def evaluate_g2a(data: QualityData, pred: np.ndarray, *, n_boot: int = N_BOOTSTRAP) -> QualityG2a:

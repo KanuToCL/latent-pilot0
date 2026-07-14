@@ -3,7 +3,7 @@ VENV := .venv
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: setup setup-gpu smoke test test-degrade manifest-demo encode-demo probe-demo analyze quality-demo clean
+.PHONY: setup setup-gpu smoke test test-degrade manifest-demo encode-demo probe-demo analyze quality-demo combos-demo ood-demo clean
 
 # Mac dev path: torch-free. The GPU box additionally runs `make setup-gpu`.
 setup:
@@ -46,6 +46,14 @@ analyze:
 # Phase-6 demo: quality head + NR baselines → Gate-2 table (fake latents + scores).
 quality-demo:
 	$(PY) -m pilot0.quality.audit
+
+# Phase-7 demo: pairwise combos → additivity cosine + zero-shot type-probe transfer.
+combos-demo:
+	$(PY) -m pilot0.combos.audit
+
+# Phase-7 demo: OOD teaser → no-reference metric disagreement (out-of-grid vs grid).
+ood-demo:
+	$(PY) -m pilot0.ood.audit
 
 clean:
 	rm -rf $(VENV) src/*.egg-info reports .pytest_cache

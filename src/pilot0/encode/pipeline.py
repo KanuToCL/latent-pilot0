@@ -45,7 +45,7 @@ class EncodeReport:
         return sum(s.encoded + s.skipped for s in self.per_encoder)
 
 
-def _memoized_master_loader(norm_dir) -> Callable[[str], tuple[np.ndarray, int]]:
+def memoized_master_loader(norm_dir) -> Callable[[str], tuple[np.ndarray, int]]:
     cache: dict[str, tuple[np.ndarray, int]] = {}
 
     def load(token: str) -> tuple[np.ndarray, int]:
@@ -56,12 +56,12 @@ def _memoized_master_loader(norm_dir) -> Callable[[str], tuple[np.ndarray, int]]
     return load
 
 
-def _headroom_path(cache_dir, cv: str, native_sr: int) -> Path:
+def headroom_path(cache_dir, cv: str, native_sr: int) -> Path:
     return Path(cache_dir) / cv / "headroom" / f"sr_{native_sr}.json"
 
 
-def _resolve_headroom(cache_dir, cv, native_sr, rows, load, ceiling_dbfs) -> Headroom:
-    path = _headroom_path(cache_dir, cv, native_sr)
+def resolve_headroom(cache_dir, cv, native_sr, rows, load, ceiling_dbfs) -> Headroom:
+    path = headroom_path(cache_dir, cv, native_sr)
     if path.exists():
         return Headroom.from_dict(json.loads(path.read_text()))
     head = measure_headroom(rows, load, native_sr, ceiling_dbfs)
@@ -111,12 +111,12 @@ def encode_corpus(
     ceiling_dbfs: float = CEILING_DBFS,
 ) -> EncodeReport:
     cv = cache_version(manifest, ceiling_dbfs)
-    load = _memoized_master_loader(norm_dir)
+    load = memoized_master_loader(norm_dir)
     per_encoder: list[EncoderStats] = []
     for name in encoder_names:
         enc = make_encoder(name)
         rows = renderable_rows(manifest, enc.native_sr)
-        head = _resolve_headroom(cache_dir, cv, enc.native_sr, rows, load, ceiling_dbfs)
+        head = resolve_headroom(cache_dir, cv, enc.native_sr, rows, load, ceiling_dbfs)
         encoded, skipped = _encode_rows(enc, rows, load, head.scalar, cache_dir, cv)
         per_encoder.append(
             EncoderStats(
