@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pilot A Field Guide</title>
+<style>
+  :root {
+    --bg:#14161f; --surface:#1d2030; --surface2:#232742; --text:#dfe3f0; --dim:#9aa3bd;
+    --line:#2e3352; --z0:#f7768e; --z1:#e0af68; --z2:#9ece6a; --z3:#7aa2f7; --z4:#bb9af7; --z5:#7dcfff;
+    --mono: ui-monospace,"Cascadia Code",Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:16px/1.65 system-ui,"Segoe UI",sans-serif;max-width:960px;margin:0 auto;padding:2.5rem 1.25rem 4rem}
+  h1{font-size:1.9rem} .sub{color:var(--dim);margin-top:.35rem;margin-bottom:2rem}
+  section{margin-top:2.6rem}
+  .zoom{display:flex;align-items:baseline;gap:.6rem;margin-bottom:.25rem}
+  .zoom .lvl{font-family:var(--mono);font-size:.72rem;font-weight:700;letter-spacing:.06em;padding:.15rem .5rem;border-radius:99px;flex:none}
+  h2{font-size:1.3rem}
+  .lead{color:var(--dim);margin-bottom:1rem;font-size:.95rem}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:1rem 1.15rem;margin-bottom:.9rem}
+  h3{font-size:1rem;margin-bottom:.4rem}
+  p{margin-bottom:.6rem} p:last-child{margin-bottom:0}
+  code{font-family:var(--mono);font-size:.84rem;color:var(--z5);background:var(--surface2);padding:.05rem .35rem;border-radius:4px}
+  pre{font-family:var(--mono);font-size:.8rem;line-height:1.5;background:#101218;border:1px solid var(--line);border-radius:8px;padding:.9rem 1rem;overflow-x:auto;color:#a9d977;margin:.7rem 0}
+  table{border-collapse:collapse;width:100%;margin:.6rem 0;font-size:.9rem}
+  th{color:var(--z2);text-align:left;font-weight:600;padding:.3rem .6rem .3rem 0;border-bottom:1px solid var(--line)}
+  td{padding:.35rem .6rem .35rem 0;border-bottom:1px solid var(--line);vertical-align:top}
+  td:first-child{color:var(--z5);font-family:var(--mono);font-size:.82rem;white-space:nowrap}
+  .warn{background:var(--surface2);border-left:3px solid var(--z1);border-radius:0 8px 8px 0;padding:.7rem 1rem;margin:.8rem 0;font-size:.92rem}
+  .warn strong{color:var(--z1)}
+  a{color:var(--text);border-bottom:1px solid var(--line);text-decoration:none}
+  a:hover{color:var(--z3);border-color:var(--z3)}
+  .s0 .lvl{background:color-mix(in srgb,var(--z0) 20%,transparent);color:var(--z0)}
+  .s1 .lvl{background:color-mix(in srgb,var(--z1) 20%,transparent);color:var(--z1)}
+  .s2 .lvl{background:color-mix(in srgb,var(--z2) 20%,transparent);color:var(--z2)}
+  .s3 .lvl{background:color-mix(in srgb,var(--z3) 20%,transparent);color:var(--z3)}
+  .s4 .lvl{background:color-mix(in srgb,var(--z4) 20%,transparent);color:var(--z4)}
+  .s5 .lvl{background:color-mix(in srgb,var(--z5) 20%,transparent);color:var(--z5)}
+  ul{padding-left:1.2rem;margin-bottom:.6rem} li{margin-bottom:.3rem}
+  footer{margin-top:3rem;color:var(--dim);font-size:.85rem}
+</style>
+</head>
+<body>
+
+<h1>Pilot A Field Guide</h1>
+<div class="sub">The whole project, zoom lens style: start at the thesis, end at a single cached file. Companion to <code>docs/MATH_BRUSHUP.html</code> (the math) and <code>docs/PILOT_A_IMPLEMENTATION.md</code> (the frozen plan).</div>
+
+<!-- ZOOM 0 -->
+<section class="s0">
+  <div class="zoom"><span class="lvl">ZOOM 0</span><h2>The north star — a quality signal that survives having no reference</h2></div>
+  <p class="lead">PhD frame: "Perceptually Grounded Codecs and Reward Models for Generative Audio."</p>
+  <div class="card">
+    <p>Every classical audio-quality metric (PESQ, ViSQOL) compares a degraded signal against its clean original. <strong>Generated audio has no original.</strong> There is nothing to diff against — which is why generative models can sound subtly wrong in ways no automated signal catches.</p>
+    <p>The bet: a <strong>differentiable, no-reference metric</strong> — the "wheel" — that reads quality from the audio itself. Differentiable matters because then a generator can be <em>trained against it</em> (a reward model). The wheel is first built and calibrated on <em>known</em> distortions (where we can verify it), then scaled toward generated audio (where nothing else works).</p>
+  </div>
+</section>
+
+<!-- ZOOM 1 -->
+<section class="s1">
+  <div class="zoom"><span class="lvl">ZOOM 1</span><h2>Pilot A's wager — the information may already be there, for free</h2></div>
+  <p class="lead">Before training anything: check whether pretrained models already did the work.</p>
+  <div class="card">
+    <p>Neural audio codecs (EnCodec, DAC, Mimi) and self-supervised speech models (WavLM) were trained on enormous audio corpora for <em>other</em> purposes — compression, representation learning. The wager: their internal representations (<strong>latents</strong>) already organize degradation information geometrically, so that <strong>tiny linear probes</strong> can read out <em>what kind</em> of damage and <em>how much</em> — with no reference signal, and without training the encoders at all (they stay <strong>frozen</strong>).</p>
+    <p>Five pre-registered research questions: <strong>RQ1</strong> is type/severity linearly readable? <strong>RQ2</strong> do combined distortions add up geometrically? <strong>RQ3</strong> is severity <em>monotone</em> in latent space (more damage → further along a direction)? <strong>RQ4</strong> can a small head on frozen latents predict perceptual quality scores? <strong>RQ5</strong> does any of it interpolate to unseen severities?</p>
+    <p>Either answer is a result: <em>yes</em> → the wheel's embryo exists for cheap; <em>no</em> → codecs discard perceptual damage structure, which itself redirects the thesis.</p>
+  </div>
+</section>
+
+<!-- ZOOM 2 -->
+<section class="s2">
+  <div class="zoom"><span class="lvl">ZOOM 2</span><h2>The experiment — controlled damage, free labels</h2></div>
+  <p class="lead">You can't learn to read damage unless you know exactly what the damage was.</p>
+  <div class="card">
+    <h3>Corpus</h3>
+    <p>510 clean speech clips · 102 VCTK speakers × 5 clips · 4–10 s · loudness-normalized to −23 LUFS. Splits are <strong>speaker-disjoint</strong>: a speaker is entirely in train or entirely in test, never both — otherwise the probe could cheat by recognizing voices.</p>
+    <div class="warn"><strong>Known caveat:</strong> the selected clips concentrate in VCTK's shared passages, so train and test speakers read the <em>same sentences</em>. This makes the pilot content-controlled (good: content can't explain differences) but forbids any content-generalization claim. Logged in DECISIONS.md; embedded in the report itself.</div>
+    <h3>The degradation grid — 7 families × 5 severities, identical recipe for every clip</h3>
+    <table>
+      <tr><th>family</th><th>what it is</th><th>severity knob</th></tr>
+      <tr><td>noise</td><td>broadband additive noise</td><td>SNR ladder</td></tr>
+      <tr><td>hiss</td><td>high-shelf noise (tape/preamp hiss)</td><td>SNR ladder</td></tr>
+      <tr><td>hum</td><td>mains hum + harmonics (50 Hz family)</td><td>SNR ladder</td></tr>
+      <tr><td>clip</td><td>hard clipping</td><td>% samples clipped</td></tr>
+      <tr><td>bandlimit</td><td>low-pass (telephone-ification)</td><td>cutoff frequency</td></tr>
+      <tr><td>mp3</td><td>real LAME encode/decode round-trip</td><td>bitrate ladder</td></tr>
+      <tr><td>dropout</td><td>zeroed micro-bursts (crackle/glitch)</td><td>burst density</td></tr>
+    </table>
+    <p>35 damaged versions + 1 clean = <strong>36 conditions per clip</strong> → 18,360 waveforms. Because we did the damage ourselves, every waveform carries <strong>free ground-truth labels</strong> (family, severity) that the probes must recover blind.</p>
+    <h3>Encoders and their depth taps (17 candidate representations)</h3>
+    <table>
+      <tr><th>encoder</th><th>kind</th><th>variants swept</th><th>the question the sweep asks</th></tr>
+      <tr><td>encodec24k</td><td>neural codec (conv + RVQ)</td><td>z, d1, d2, d4, d8</td><td rowspan="2">how much survives quantization depth? (d1 = coarsest 1 codebook … d8 = 8 codebooks; z = continuous pre-quantization)</td></tr>
+      <tr><td>dac44k</td><td>neural codec (conv + RVQ)</td><td>z, d1, d2, d4, d8</td></tr>
+      <tr><td>wavlm</td><td>self-supervised transformer</td><td>l1, l6, l12, l18, l24</td><td>where in the layer stack does damage info live? (low = acoustic, high = phonetic/semantic)</td></tr>
+      <tr><td>mimi</td><td>codec with split streams</td><td>semantic, acoustic</td><td>does damage live in the "meaning" stream or the "sound" stream?</td></tr>
+    </table>
+    <h3>The two guard baselines (what makes this science, not vibes)</h3>
+    <ul>
+      <li><code>logmel</code> — a plain mel spectrogram. If it probes as well as the codecs, the codecs add nothing over classical DSP: the <strong>floor</strong>.</li>
+      <li><code>energy</code> — 3-band loudness only. If severity is readable from this, "severity" was just volume: the <strong>control</strong>.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ZOOM 3 -->
+<section class="s3">
+  <div class="zoom"><span class="lvl">ZOOM 3</span><h2>Mechanics — from waveform to a point in latent space</h2></div>
+  <p class="lead">What each of tonight's ~338k cached files went through.</p>
+  <div class="card">
+<pre>
+one clip (48 kHz master, −23 LUFS)
+ │
+ ├── resample to the encoder's native rate (24k / 16k / 44.1k)     rate FIRST,
+ ├── apply ONE degradation recipe (or none = clean)                so "bandlimit 6 kHz"
+ ├── × corpus-global headroom scalar (per rate, attenuate-only)    means the same thing
+ │                                                                 at every rate
+ ├── FROZEN encoder forward pass ──► frames [T, D]
+ │        one real-valued vector per time step — no phase, no complex numbers
+ │
+ ├── pool over time: mean + std across frames ──► ONE vector per clip-condition
+ │        (frame-level kept only for dropout — a 20 ms glitch
+ │         survives per-frame but washes out in a 6-second mean)
+ │
+ └── .npz in a content-addressed cache
+        key = code_version / encoder / variant / cell
+        atomic writes · resume-safe · any algorithm change auto-invalidates
+</pre>
+    <h3>Per frame? per clip? per window? — all three, stacked</h3>
+    <table>
+      <tr><th>encoder</th><th>one frame ≈</th><th>frames/s</th><th>D</th><th>a frame's context</th></tr>
+      <tr><td>encodec24k</td><td>13.3 ms hop</td><td>75</td><td>128</td><td>local (conv receptive field — a syllable fragment)</td></tr>
+      <tr><td>dac44k</td><td>11.6 ms hop</td><td>86</td><td>1024</td><td>local (conv)</td></tr>
+      <tr><td>mimi</td><td>80 ms hop</td><td>12.5</td><td>512</td><td>conv + transformer context</td></tr>
+      <tr><td>wavlm</td><td>20 ms hop</td><td>50</td><td>1024</td><td><strong>global</strong> — every frame attends to the whole clip</td></tr>
+    </table>
+    <p>So "the latent" at probe time is the <strong>pooled clip vector</strong>: 128–2048 numbers summarizing one clip under one condition. That vector is the point your shift-vector geometry (Δ = z<sub>dirty</sub> − z<sub>clean</sub>) lives on.</p>
+  </div>
+</section>
+
+<!-- ZOOM 4 -->
+<section class="s4">
+  <div class="zoom"><span class="lvl">ZOOM 4</span><h2>The gates — pre-registered, fail-closed, allergic to self-deception</h2></div>
+  <p class="lead">Fixed before any real data existed. A FAIL is a finding, never a bug to tune away.</p>
+  <div class="card">
+    <h3>Gate 1 — "it's not just loudness"</h3>
+    <p>For each of the 17 candidates: severity rank-correlation (Spearman, bootstrap CIs over <em>speaker groups</em>) must beat the <code>energy</code> control by a CI-separated margin, AND type macro-F1 must clear the <code>logmel</code> floor. Underpowered reports (too few test groups) refuse to render a verdict at all.</p>
+    <h3>Gate 2 — "it tracks perception, not another metric's quirks"</h3>
+    <p>A ridge head on frozen latents predicts ViSQOL (G2a), then must beat the no-reference incumbents (NISQA/DNSMOS/UTMOS) on <strong>human MOS held away from training</strong> (G2b). A rig-guard rejects a head that merely parrots ViSQOL's ranking. No MOS available → G2b says "not evaluable" — it never substitutes.</p>
+    <h3>The honesty machinery</h3>
+    <ul>
+      <li><strong>Provenance</strong>: every artifact stamps <code>fake:true/false</code>, <em>derived</em> from which encoders ran — a plumbing-check JSON cannot impersonate a result.</li>
+      <li><strong>Embedded caveats</strong>: tonight's report carries its own warnings inside the file (winner unconfirmed on a held-out split; content-controlled corpus).</li>
+      <li><strong>Frozen gates</strong>: thresholds, candidate list, and split logic predate data contact.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ZOOM 5 -->
+<section class="s5">
+  <div class="zoom"><span class="lvl">ZOOM 5</span><h2>Tonight, tomorrow, and your experiment</h2></div>
+  <div class="card">
+    <p><strong>Tonight:</strong> six worker processes (one per encoder) render + encode all 18,360 waveforms into the cache; then Gate 1 runs over all 17 candidates → <code>reports/gate1_real.json</code>: per-candidate PASS/fail, margins over floor and energy, test-group power, caveats, provenance <code>fake:false</code> — the repo's first real numbers.</p>
+    <p><strong>Then — the shift-vector experiment (yours):</strong> for each clip, Δ = z(dirty) − z(clean). Ask: do all 510 Δ's for one distortion point the same way (mean pairwise cosine vs the 1/√D random-baseline)? Does ‖Δ‖ grow monotonically with severity? Do the 7 family directions stay distinguishable after PCA — measured in full dimension first, reduction only to test persistence? A consistent direction per family = a linear distortion axis = the wheel's first spoke: correction is projection-and-subtraction, and projections are differentiable.</p>
+    <p><strong>Queued after:</strong> Gate 2 metric tables (ViSQOL/PESQ build, NR incumbents, eventually human MOS), the winner-confirmation split, a content-general corpus arm (VCTK utt ≥025), music/sound arms.</p>
+  </div>
+</section>
+
+<!-- HOMEWORK -->
+<section class="s2">
+  <div class="zoom"><span class="lvl">STUDY</span><h2>PhD homework — five tracks, in reading order</h2></div>
+  <p class="lead">Papers verified on arXiv; read abstracts + figures first, depth later. Math prerequisites live in MATH_BRUSHUP.html.</p>
+  <div class="card">
+    <table>
+      <tr><th>track</th><th>read</th><th>why</th></tr>
+      <tr><td>1 · neural codecs</td><td><a href="https://arxiv.org/abs/2107.03312">SoundStream</a> → <a href="https://arxiv.org/abs/2210.13438">EnCodec</a> → <a href="https://arxiv.org/abs/2306.06546">DAC</a></td><td>conv encoder + residual vector quantization (RVQ) — where d1..d8 come from</td></tr>
+      <tr><td>2 · SSL speech</td><td><a href="https://arxiv.org/abs/2106.07447">HuBERT</a> → <a href="https://arxiv.org/abs/2110.13900">WavLM</a></td><td>masked prediction; why layer depth ~ acoustic→phonetic; the l1..l24 sweep</td></tr>
+      <tr><td>3 · probing method</td><td><a href="https://arxiv.org/abs/1610.01644">Alain &amp; Bengio, linear probes</a></td><td>why frozen-encoder + linear probe is a claim about the <em>representation</em>, not the classifier</td></tr>
+      <tr><td>4 · perceptual metrics</td><td>PESQ (ITU P.862) → <a href="https://arxiv.org/abs/2004.09584">ViSQOL v3</a> → <a href="https://arxiv.org/abs/2104.09494">NISQA</a> → <a href="https://arxiv.org/abs/2010.15258">DNSMOS</a></td><td>the reference→no-reference lineage this pilot competes against; MOS (ITU P.800) is the human anchor</td></tr>
+      <tr><td>5 · doing it honestly</td><td>pre-registration + grouped evaluation (start: this repo's DECISIONS.md + gates code)</td><td>speaker-disjoint splits, bootstrap over groups, frozen thresholds — the difference between a result and a leak</td></tr>
+    </table>
+  </div>
+</section>
+
+<footer>
+  Zoom back out whenever lost: <em>no-reference quality signal → is it already in frozen latents? → controlled damage, free labels → pooled vectors in latent space → two skeptical gates → the wheel.</em><br><br>
+  Companions: <span style="font-family:var(--mono)">docs/MATH_BRUSHUP.html</span> (math + videos, with progress tracking) · <span style="font-family:var(--mono)">docs/PILOT_A_IMPLEMENTATION.md</span> (frozen plan) · <span style="font-family:var(--mono)">docs/DECISIONS.md</span> (why everything is the way it is).
+</footer>
+
+</body>
+</html>
