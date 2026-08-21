@@ -131,9 +131,9 @@ class JobController:
 def job_status(job: JobController) -> Text:
     pid = job.pid
     if pid is not None:
-        return Text.assemble(("● RUNNING (detached — survives closing this window)", "bold bright_green"),
+        return Text.assemble((">> RUNNING (detached - survives closing this window)", "bold bright_green"),
                              (f"  pid {pid}", "dim"), ("    ^P pause   ^O start", "dim"))
-    return Text.assemble(("■ NOT RUNNING — cache kept, ^O resumes where it left off", "bold yellow"),
+    return Text.assemble(("|| NOT RUNNING - cache kept, ^O resumes where it left off", "bold yellow"),
                          ("    ^O start   ^P pause", "dim"))
 
 
