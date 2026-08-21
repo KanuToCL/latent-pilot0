@@ -1,12 +1,17 @@
-"""Live operator panel for Job B encode runs. Operator tooling only — reads the
-cache directory and the job log; never touches the pipeline.
+"""Live operator panel + controller for Job B encode runs. Reads the cache
+directory and the job log; owns the job subprocess (Ctrl+O start / Ctrl+P pause).
+Pausing is always safe: the cache is atomic + resume-safe.
 
-Usage (own terminal window):  .venv/Scripts/python tools/encode_monitor.py
+Usage (own terminal window):  .venv/Scripts/python tools/encode_monitor.py [--autostart]
+Closing this window also stops a running job (it is a child process).
 """
 from __future__ import annotations
 
 import json
+import msvcrt
+import os
 import subprocess
+import sys
 import time
 from collections import deque
 from pathlib import Path
@@ -56,6 +61,46 @@ def cached_counts() -> dict[tuple[str, str], int]:
     return out
 
 
+class JobController:
+    """Owns the job_b_run.py subprocess. terminate() is safe mid-encode
+    (atomic cache writes); a restart resumes from the cache."""
+
+    def __init__(self) -> None:
+        self.proc: subprocess.Popen | None = None
+
+    @property
+    def running(self) -> bool:
+        return self.proc is not None and self.proc.poll() is None
+
+    def start(self) -> None:
+        if self.running:
+            return
+        env = {**os.environ,
+               "HF_HOME": str(ROOT / "data" / "hf-cache"),
+               "HF_HUB_DISABLE_SYMLINKS_WARNING": "1",
+               "PYTHONIOENCODING": "utf-8"}
+        LOG.parent.mkdir(parents=True, exist_ok=True)
+        self.proc = subprocess.Popen(
+            [str(ROOT / ".venv" / "Scripts" / "python.exe"), "-u", str(ROOT / "tools" / "job_b_run.py")],
+            stdout=open(LOG, "ab"), stderr=subprocess.STDOUT, cwd=ROOT, env=env,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+        )
+
+    def stop(self) -> None:
+        if self.running:
+            self.proc.terminate()
+            self.proc.wait(timeout=15)
+
+
+def job_status(job: JobController) -> Text:
+    if job.running:
+        return Text.assemble(("● RUNNING", "bold bright_green"), (f"  pid {job.proc.pid}", "dim"),
+                             ("    ^P pause   ^O (re)start", "dim"))
+    ended = job.proc is not None
+    label = "■ PAUSED — cache kept, restart resumes" if ended else "○ IDLE — not started"
+    return Text.assemble((label, "bold yellow"), ("    ^O start   ^P pause", "dim"))
+
+
 def headroom_status() -> Text:
     """The headroom scan renders every cell at a rate BEFORE caching anything —
     without this line the panel looks dead during that (one-time, persisted) phase."""
@@ -87,7 +132,7 @@ def log_tail(n: int = 4) -> list[str]:
     return [ln.strip()[:110] for ln in lines[-n:] if ln.strip()] or ["(log empty)"]
 
 
-def render(expected, history, t0) -> Panel:
+def render(expected, history, t0, job: JobController) -> Panel:
     counts = cached_counts()
     done = sum(counts.values())
     total = sum(expected.values())
@@ -125,7 +170,7 @@ def render(expected, history, t0) -> Panel:
     tail = Text("\n".join(log_tail()), style="dim")
     status = Text("ENCODE COMPLETE — gate 1 phase (watch log)", style="bold black on bright_green") \
         if done >= total else Text("")
-    return Panel(Group(hdr, bar, Text(""), table, Text(""), res, headroom_status(), Text(""), tail, status),
+    return Panel(Group(job_status(job), Text(""), hdr, bar, Text(""), table, Text(""), res, headroom_status(), Text(""), tail, status),
                  title="[bold bright_green]pilot0 // job B — real mini-sweep[/]",
                  border_style="green")
 
@@ -135,10 +180,25 @@ def main() -> None:
     expected = expected_counts()
     history: deque = deque(maxlen=60)  # ~2 min rate window
     t0 = time.time()
-    with Live(console=console, refresh_per_second=1) as live:
-        while True:
-            live.update(render(expected, history, t0))
-            time.sleep(REFRESH_S)
+    job = JobController()
+    if "--autostart" in sys.argv:
+        job.start()
+    try:
+        with Live(console=console, refresh_per_second=1) as live:
+            while True:
+                live.update(render(expected, history, t0, job))
+                # poll keys in small slices so ^O/^P feel instant
+                deadline = time.time() + REFRESH_S
+                while time.time() < deadline:
+                    if msvcrt.kbhit():
+                        key = msvcrt.getch()
+                        if key == b"\x0f":   # Ctrl+O
+                            job.start()
+                        elif key == b"\x10":  # Ctrl+P
+                            job.stop()
+                    time.sleep(0.05)
+    finally:
+        job.stop()  # window closed / crashed -> don't orphan the encoder
 
 
 if __name__ == "__main__":
