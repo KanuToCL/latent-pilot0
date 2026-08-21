@@ -56,6 +56,18 @@ def cached_counts() -> dict[tuple[str, str], int]:
     return out
 
 
+def headroom_status() -> Text:
+    """The headroom scan renders every cell at a rate BEFORE caching anything —
+    without this line the panel looks dead during that (one-time, persisted) phase."""
+    rates = {make_encoder(n).native_sr for n in ENCODERS}
+    done = {int(p.stem.split("_")[1]) for p in CACHE.glob("*/headroom/sr_*.json")} if CACHE.exists() else set()
+    if rates <= done:
+        return Text("headroom scalars: all rates ready", style="green")
+    pend = ", ".join(f"{r // 1000}k" for r in sorted(rates - done))
+    return Text(f"phase: headroom scan (one-time per rate; pending: {pend}) — no latents cached until a scan completes",
+                style="bold yellow")
+
+
 def gpu_stats() -> str:
     try:
         q = subprocess.run(
@@ -113,7 +125,7 @@ def render(expected, history, t0) -> Panel:
     tail = Text("\n".join(log_tail()), style="dim")
     status = Text("ENCODE COMPLETE — gate 1 phase (watch log)", style="bold black on bright_green") \
         if done >= total else Text("")
-    return Panel(Group(hdr, bar, Text(""), table, Text(""), res, Text(""), tail, status),
+    return Panel(Group(hdr, bar, Text(""), table, Text(""), res, headroom_status(), Text(""), tail, status),
                  title="[bold bright_green]pilot0 // job B — real mini-sweep[/]",
                  border_style="green")
 
