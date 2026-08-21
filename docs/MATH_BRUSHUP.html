@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Latent Math Brush-Up</title>
+<style>
+  :root {
+    --bg: #14161f; --surface: #1d2030; --surface2: #232742;
+    --text: #dfe3f0; --dim: #9aa3bd; --line: #2e3352;
+    --t1: #7aa2f7; --t2: #9ece6a; --t3: #e0af68;
+    --video: #f7768e; --inter: #bb9af7; --textref: #7dcfff;
+    --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 16px/1.6 system-ui, "Segoe UI", sans-serif;
+    max-width: 980px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem;
+  }
+  header { margin-bottom: 2rem; }
+  h1 { font-size: 1.9rem; letter-spacing: .01em; }
+  .sub { color: var(--dim); margin-top: .35rem; }
+  h2 { font-size: 1.25rem; margin: 2.4rem 0 .3rem; display: flex; align-items: center; gap: .55rem; }
+  .tierdot { width: .8rem; height: .8rem; border-radius: 50%; display: inline-block; flex: none; }
+  .tier1 .tierdot { background: var(--t1); } .tier2 .tierdot { background: var(--t2); } .tier3 .tierdot { background: var(--t3); }
+  .tierwhy { color: var(--dim); font-size: .92rem; margin-bottom: 1.1rem; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 1rem 1.15rem; margin-bottom: .9rem;
+  }
+  .card h3 { font-size: 1.02rem; margin-bottom: .15rem; }
+  .hook {
+    color: var(--dim); font-size: .88rem; margin-bottom: .65rem;
+  }
+  .hook code { font-family: var(--mono); font-size: .82rem; color: var(--textref); background: var(--surface2); padding: .06rem .35rem; border-radius: 4px; }
+  ul.res { list-style: none; }
+  ul.res li { padding: .22rem 0; display: flex; gap: .55rem; align-items: baseline; flex-wrap: wrap; }
+  .badge {
+    font-family: var(--mono); font-size: .68rem; font-weight: 600; letter-spacing: .04em;
+    padding: .12rem .45rem; border-radius: 99px; flex: none; text-transform: uppercase;
+  }
+  .b-video { background: color-mix(in srgb, var(--video) 18%, transparent); color: var(--video); }
+  .b-inter { background: color-mix(in srgb, var(--inter) 18%, transparent); color: var(--inter); }
+  .b-text  { background: color-mix(in srgb, var(--textref) 18%, transparent); color: var(--textref); }
+  a { color: var(--text); text-decoration: none; border-bottom: 1px solid var(--line); }
+  a:hover { color: var(--t1); border-color: var(--t1); }
+  .len { color: var(--dim); font-size: .82rem; }
+  .why { color: var(--dim); font-size: .88rem; flex-basis: 100%; padding-left: 4.6rem; margin-top: -.15rem; }
+  input.chk { flex: none; width: 1rem; height: 1rem; cursor: pointer; accent-color: var(--t1); position: relative; top: .12rem; }
+  .tier2 input.chk { accent-color: var(--t2); } .tier3 input.chk { accent-color: var(--t3); }
+  li.done > a, li.done > .len, li.done + li .why { }
+  li.done a { color: var(--dim); text-decoration: line-through; text-decoration-color: var(--line); }
+  li.done .why, li.done .len { opacity: .55; }
+  .card.complete { border-color: color-mix(in srgb, var(--t2) 55%, var(--line)); }
+  .card.complete h3::after { content: " ✓"; color: var(--t2); }
+  .progress { margin-top: 1rem; }
+  .progress .ptext { font-family: var(--mono); font-size: .8rem; color: var(--dim); margin-bottom: .3rem; }
+  .pbar { height: 6px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+  .pbar > div { height: 100%; width: 0%; background: linear-gradient(90deg, var(--t1), var(--t2)); border-radius: 99px; transition: width .25s; }
+  .spine { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: .8rem; margin-top: 1rem; }
+  .spine .card { margin: 0; }
+  .spine h3 { font-size: .95rem; }
+  .spine p { color: var(--dim); font-size: .85rem; margin-top: .3rem; }
+  .note {
+    background: var(--surface2); border-left: 3px solid var(--t3);
+    border-radius: 0 8px 8px 0; padding: .85rem 1.05rem; margin: 1.6rem 0; font-size: .93rem;
+  }
+  .note strong { color: var(--t3); }
+  footer { margin-top: 2.5rem; color: var(--dim); font-size: .85rem; }
+  @media (max-width: 640px) { .why { padding-left: 0; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Latent Math Brush-Up</h1>
+  <div class="sub">The algebra behind pilot0's latent geometry — shift vectors, probes, gates, and the differentiable-metric endgame. Video-first: every topic leads with its best animated explainer. Links verified 2026-08-21.</div>
+  <div class="progress">
+    <div class="ptext" id="ptext">0 / 0 done</div>
+    <div class="pbar"><div id="pfill"></div></div>
+  </div>
+</header>
+
+<h2 style="margin-top:1.5rem">The Spine — watch/keep these four</h2>
+<div class="spine">
+  <div class="card">
+    <h3><a href="https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab">3Blue1Brown — Essence of Linear Algebra</a></h3>
+    <p>16 videos, ~3.5 h. The gold-standard visual foundation. Tier 1 lives here.</p>
+  </div>
+  <div class="card">
+    <h3><a href="https://www.youtube.com/playlist?list=PLMrJAkhIeNNSVjnsviglFoY2nXildDCcv">Steve Brunton — SVD series</a></h3>
+    <p>12 videos, ~7 h (skim what you need). SVD → PCA → least squares, with code.</p>
+  </div>
+  <div class="card">
+    <h3><a href="https://www.youtube.com/playlist?list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi">3Blue1Brown — Neural Networks</a></h3>
+    <p>~2 h. Gradient descent + backprop, animated. The differentiable-metric mental model.</p>
+  </div>
+  <div class="card">
+    <h3><a href="https://mml-book.github.io/book/mml-book.pdf">Mathematics for ML (Deisenroth) — free PDF</a></h3>
+    <p>Reference, not cover-to-cover. Ch. 2–5 (algebra/decompositions), 7 (optimization), 9–10 (regression/PCA).</p>
+  </div>
+</div>
+
+<section class="tier1">
+<h2><span class="tierdot"></span>Tier 1 — the daily bread</h2>
+<div class="tierwhy">Without these you're vibing, not measuring.</div>
+
+<div class="card">
+  <h3>Dot product, norms, cosine similarity</h3>
+  <div class="hook">Every shift vector Δ = z(dirty) − z(clean); every angle claim is cos θ = ⟨a,b⟩/(‖a‖‖b‖). Cosine ignores magnitude — know when that's a feature vs a bug. → <code>analysis/geometry.py</code></div>
+  <ul class="res">
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab">3B1B — "Dot products and duality" (Ch. 9 of Essence of Linear Algebra)</a><span class="len">~12 min</span>
+      <span class="why">Dot product as projection — the geometric picture behind every cosine you'll compute.</span></li>
+    <li><span class="badge b-inter">interactive</span><a href="http://immersivemath.com/ila/index.html">Immersive Linear Algebra — Ch. 3, The Dot Product</a><span class="len">~1 h</span>
+      <span class="why">Drag-the-vectors illustrations; projection and angle you can feel.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Projection &amp; orthogonality</h3>
+  <div class="hook">The correction "wheel" = project onto a distortion axis and subtract. Gate 1's whole point: is severity info <em>orthogonal</em> to loudness, or just loudness again? → <code>probes/run.py</code> (energy control)</div>
+  <ul class="res">
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=uQhTuRlWMxw">3B1B — "Inverse matrices, column space and null space" (Ch. 7)</a><span class="len">~12 min</span>
+      <span class="why">Column space / null space — what a projection keeps and what it kills.</span></li>
+    <li><span class="badge b-inter">interactive</span><a href="http://immersivemath.com/ila/index.html">Immersive Linear Algebra — orthogonal projection (Ch. 3)</a><span class="len">~30 min</span>
+      <span class="why">Interactive projection onto lines and planes.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Centroids, centering, covariance + eigendecomposition</h3>
+  <div class="hook">Condition centroids are the repo's unit of geometry; PCA <em>is</em> eigendecomposition of the covariance matrix. Center first, or your cosine measures where the cloud sits, not the shift. → <code>analysis/geometry.py</code></div>
+  <ul class="res">
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab">3B1B — "Eigenvectors and eigenvalues" (Ch. 14)</a><span class="len">~17 min</span>
+      <span class="why">Why eigenvectors are the directions a transformation can't rotate — the heart of PCA.</span></li>
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=qtaqvPAeEJY">StatQuest — "Covariance, Clearly Explained"</a><span class="len">~22 min</span>
+      <span class="why">What the covariance matrix actually encodes, one axis pair at a time.</span></li>
+    <li><span class="badge b-text">text</span><a href="https://mml-book.github.io/book/mml-book.pdf">MML book — Ch. 4.2–4.4 (eigen, diagonalization, spectral)</a><span class="len">~40 pp</span>
+      <span class="why">The rigorous backstop once the pictures land.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>SVD + PCA</h3>
+  <div class="hook">The reduction step of the persistence test. SVD is the machinery under sklearn's PCA and under low-rank structure generally. → the dimension-reduction leg of the shift-vector experiment</div>
+  <ul class="res">
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/playlist?list=PLMrJAkhIeNNSVjnsviglFoY2nXildDCcv">Brunton — SVD series (start: first 3 videos, then the PCA ones)</a><span class="len">~1.5 h of the 7 h</span>
+      <span class="why">SVD → PCA connection made explicit, with Python code you can port.</span></li>
+    <li><span class="badge b-text">text</span><a href="https://mml-book.github.io/book/mml-book.pdf">MML book — Ch. 10 (PCA as projection / low-rank approximation)</a><span class="len">~25 pp</span>
+      <span class="why">PCA three ways: variance-max, projection, reconstruction — all the same thing.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>High-dimensional weirdness (concentration of measure)</h3>
+  <div class="hook">The #1 out-of-ass vaccine. In D=1024 (WavLM/DAC), two <em>random</em> vectors sit at cos ≈ 0 ± 1/√D — so cos 0.3 across clips is enormous there and weak in D=3. Judge every Δ-concentration claim against this null. → any cosine you ever report</div>
+  <ul class="res">
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=_4DaqzLyT08">"Curse of Dimensionality, Easily Explained"</a><span class="len">~10 min</span>
+      <span class="why">Volume growth, sparsity, distance concentration — the intuition breakdown, visualized.</span></li>
+    <li><span class="badge b-text">text</span><a href="https://mml-book.github.io/book/mml-book.pdf">MML book — high-dim remarks in Ch. 10 + the 1/√D null (compute it yourself: sample pairs of np.random.randn(1024) and histogram the cosines)</a><span class="len">10 min of numpy</span>
+      <span class="why">Ten lines of numpy make this permanent better than any video.</span></li>
+  </ul>
+</div>
+</section>
+
+<section class="tier2">
+<h2><span class="tierdot"></span>Tier 2 — the measurement layer</h2>
+<div class="tierwhy">What the probes and gates actually compute.</div>
+
+<div class="card">
+  <h3>Least squares &amp; ridge regression</h3>
+  <div class="hook">The severity probe and the quality head are literally ridge: w = (XᵀX + λI)⁻¹Xᵀy. λ is why it survives D &gt; n. → <code>probes/severity.py</code>, <code>quality/head.py</code></div>
+  <ul class="res">
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=MC7l96tW8V8">Khan Academy — "Least squares approximation"</a><span class="len">~9 min</span>
+      <span class="why">Least squares as projection — ties Tier 1 directly to regression.</span></li>
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/playlist?list=PLMrJAkhIeNNSVjnsviglFoY2nXildDCcv">Brunton — "Least Squares and the SVD" (in the SVD series)</a><span class="len">~30 min</span>
+      <span class="why">Pseudoinverse + why regularization tames ill-conditioning.</span></li>
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=Xm2C_gTAl8c">"Ridge vs Lasso Regression, Visualized"</a><span class="len">~12 min</span>
+      <span class="why">Why ridge shrinks and lasso zeros — the penalty geometry.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Logistic regression / softmax, hyperplane boundaries</h3>
+  <div class="hook">The type probe. "Linearly readable" = a hyperplane separates it; consistent Δ direction ⇒ that hyperplane exists. → <code>probes/type_probe.py</code></div>
+  <ul class="res">
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=yIYKR4sgzI8">StatQuest — "Logistic Regression"</a><span class="len">~26 min</span>
+      <span class="why">S-curve, max likelihood, and the decision boundary as a line/plane.</span></li>
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/playlist?list=PLjUC8HjyxGTSrn4cZEw9Uw8R0STaRcbYY">StatQuest — "ArgMax and SoftMax" (NN playlist)</a><span class="len">~8 min</span>
+      <span class="why">Two classes → seven families: softmax is the multiclass extension the type probe uses.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Standardization, whitening, Mahalanobis distance</h3>
+  <div class="hook">Raw-space and standardized-space cosines disagree — the additivity test reports <em>both</em> on purpose. Mahalanobis = Euclidean after whitening: distance in units of natural variation. → <code>combos/additivity.py</code></div>
+  <ul class="res">
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=DgZo7WkJECo">"Whitening transformation" lecture</a><span class="len">~10 min</span>
+      <span class="why">PCA-whitening / sphering — what "removing the covariance" means geometrically.</span></li>
+    <li><span class="badge b-text">text</span><a href="https://scikit-learn.org/stable/auto_examples/covariance/plot_mahalanobis_distances.html">scikit-learn — "Robust covariance estimation and Mahalanobis distances"</a><span class="len">short + runnable</span>
+      <span class="why">Concrete Python; the ellipse pictures do the teaching.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Spearman vs Pearson correlation</h3>
+  <div class="hook">Gate 1 keys on Spearman SRCC (rank/monotone), not Pearson (linear) — monotonicity is the weaker, more honest claim. → <code>probes/metrics.py</code></div>
+  <ul class="res">
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=xZ_z8KWkhXE">StatQuest — "Pearson's Correlation"</a><span class="len">~13 min</span>
+      <span class="why">Correlation as normalized covariance — the r you already know, properly.</span></li>
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=oZ12OGFAyCk">"Pearson vs Spearman — when to use which"</a><span class="len">~8 min</span>
+      <span class="why">Rank-based vs linear, outlier robustness — exactly the Gate 1 design choice.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Bootstrap &amp; confidence intervals</h3>
+  <div class="hook">Gates compare CI-lower vs CI-upper, resampling over test <em>groups</em> (speakers), not clips — clips from one speaker aren't independent. That one word is the difference between a result and a leak. → <code>probes/metrics.py</code></div>
+  <ul class="res">
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=TqOeMYtOc1w">StatQuest — "Confidence Intervals, Clearly Explained"</a><span class="len">~18 min</span>
+      <span class="why">What a CI is and isn't — before you read a single gate report.</span></li>
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=6Rwseibxsss">StatQuest — "Bootstrap resampling"</a><span class="len">~14 min</span>
+      <span class="why">Resample-with-replacement intuition; mentally swap "sample" for "speaker group".</span></li>
+  </ul>
+</div>
+</section>
+
+<section class="tier3">
+<h2><span class="tierdot"></span>Tier 3 — the differentiable-metric layer</h2>
+<div class="tierwhy">Where this is going: gradients through the encoder, and what the metric can't see.</div>
+
+<div class="card">
+  <h3>Gradients, Jacobian, chain rule / backprop</h3>
+  <div class="hook">"Differentiable metric" = ∂loss/∂audio flows through the encoder. The chain rule <em>is</em> backprop. → the endgame</div>
+  <ul class="res">
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=YG15m2VwSjA">3B1B — "Visualizing the chain rule and product rule" (Essence of Calculus Ch. 4)</a><span class="len">~13 min</span>
+      <span class="why">The nested-machines picture of the chain rule.</span></li>
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=tIeHLnjs5U8">3B1B — "Backpropagation calculus" (NN series Ch. 4)</a><span class="len">~10 min</span>
+      <span class="why">Chain rule scaled up to networks — gradient flow made visible.</span></li>
+    <li><span class="badge b-text">text</span><a href="https://explained.ai/matrix-calculus/">Parr &amp; Howard — "The Matrix Calculus You Need for Deep Learning"</a><span class="len">~70 pp, skimmable</span>
+      <span class="why">Jacobians without tears; the reference when notation fights you.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Gradient descent &amp; loss surfaces</h3>
+  <div class="hook">What "the generator optimizes against the metric" means — and why a metric with bad gradients gets gamed. → why Gate 2 exists</div>
+  <ul class="res">
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=IHZwWFHWa-w">3B1B — "Gradient descent, how neural networks learn" (NN Ch. 2)</a><span class="len">~17 min</span>
+      <span class="why">The rolling-downhill loss landscape, animated.</span></li>
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=vMh0zPT0tLI">StatQuest — "Stochastic Gradient Descent"</a><span class="len">~9 min</span>
+      <span class="why">Mini-batch vs full-batch — the practical texture of training.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Manifolds + why t-SNE/UMAP distort global structure</h3>
+  <div class="hook">Encoders have non-trivial null spaces (what the metric can't see lives there), and latent data sits on manifolds — so nonlinear embeddings fake global distances by design. Reduce to <em>visualize</em>, never to <em>measure</em>. → the reduction-persistence test</div>
+  <ul class="res">
+    <li><span class="badge b-inter">interactive</span><a href="https://distill.pub/2016/misread-tsne/">Distill — "How to Use t-SNE Effectively"</a><span class="len">~15 min</span>
+      <span class="why">The canonical demo of cluster sizes and distances meaning nothing in t-SNE. Play with every widget.</span></li>
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=Chng7-nfDOo">"Nonlinear manifold learning with t-SNE and UMAP"</a><span class="len">~25 min</span>
+      <span class="why">Side-by-side local-vs-global preservation — the exact caveat for the persistence test.</span></li>
+  </ul>
+</div>
+</section>
+
+<div class="note">
+  <strong>Calibration target.</strong> Before: "angle, phase, or whatever high-dimension value." After Tier 1: "mean pairwise cosine of per-clip shift vectors against the 1/√D concentration null, and ‖Δ‖ monotonicity across severity." That's the level where reviewers stop being able to bully you. (And remember: real-valued latents have no phase — angle is the analog; the codec entangles signal phase inside channel amplitudes.)
+</div>
+
+<footer>
+  Suggested order: Essence of Linear Algebra straight through (~3.5 h) → per-topic videos as each concept shows up in the work → MML book chapters only when a formula fights back. Skippable for now: formal topology, tensor calculus, measure theory, information geometry.<br><br>
+  Companion to <span style="font-family:var(--mono)">docs/PILOT_A_IMPLEMENTATION.md</span> — the repo itself is the worked example: re-read <span style="font-family:var(--mono)">analysis/geometry.py</span> and <span style="font-family:var(--mono)">probes/metrics.py</span> after Tier 1.
+</footer>
+
+<script>
+(function () {
+  // Persistent read-tracking via localStorage. Keys derive from card title +
+  // link text, so reordering or adding resources never scrambles your progress.
+  var NS = "mathbrushup.v1::";
+  var store = { get: function () { return null; }, set: function () {} };
+  try {
+    localStorage.setItem(NS + "__probe", "1"); localStorage.removeItem(NS + "__probe");
+    store = {
+      get: function (k) { return localStorage.getItem(NS + k); },
+      set: function (k, v) { v ? localStorage.setItem(NS + k, "1") : localStorage.removeItem(NS + k); }
+    };
+  } catch (e) { /* file:// storage blocked in this browser — checkboxes work, just won't persist */ }
+
+  var slug = function (s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 80); };
+  var boxes = [];
+
+  function attach(li, key, card) {
+    var cb = document.createElement("input");
+    cb.type = "checkbox"; cb.className = "chk"; cb.title = "Mark as done";
+    cb.checked = !!store.get(key);
+    li.classList.toggle("done", cb.checked);
+    cb.addEventListener("change", function () {
+      store.set(key, cb.checked);
+      li.classList.toggle("done", cb.checked);
+      refresh();
+    });
+    li.insertBefore(cb, li.firstChild);
+    boxes.push({ cb: cb, card: card });
+  }
+
+  // Resource rows
+  document.querySelectorAll("section .card").forEach(function (card) {
+    var title = card.querySelector("h3"); if (!title) return;
+    card.querySelectorAll("ul.res > li").forEach(function (li) {
+      var a = li.querySelector("a"); if (!a) return;
+      attach(li, slug(title.textContent) + "::" + slug(a.textContent), card);
+    });
+  });
+  // Spine series
+  document.querySelectorAll(".spine .card").forEach(function (card) {
+    var h3 = card.querySelector("h3"), a = card.querySelector("h3 a"); if (!a) return;
+    h3.style.display = "flex"; h3.style.gap = ".5rem"; h3.style.alignItems = "baseline";
+    attach(h3, "spine::" + slug(a.textContent), card);
+  });
+
+  function refresh() {
+    var done = 0;
+    boxes.forEach(function (b) { if (b.cb.checked) done++; });
+    document.getElementById("ptext").textContent = done + " / " + boxes.length + " done";
+    document.getElementById("pfill").style.width = boxes.length ? (100 * done / boxes.length) + "%" : "0%";
+    // A card is complete when every one of its checkboxes is ticked
+    var byCard = new Map();
+    boxes.forEach(function (b) {
+      var s = byCard.get(b.card) || { t: 0, d: 0 };
+      s.t++; if (b.cb.checked) s.d++;
+      byCard.set(b.card, s);
+    });
+    byCard.forEach(function (s, card) { card.classList.toggle("complete", s.d === s.t); });
+  }
+  refresh();
+})();
+</script>
+
+</body>
+</html>

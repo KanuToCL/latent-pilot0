@@ -2,6 +2,33 @@
 
 Running log of choices that would otherwise be invisible in the code. Newest first.
 
+## Job A — fake→real bring-up complete (2026-08-21)
+
+Ran on a Windows 11 box (RTX 5070 12 GB, Ryzen 9, 96 GB RAM), not the GB10 the
+bottle anticipated — x86-64 + CUDA 12.8, no aarch64 friction. Per GB10_BRINGUP §7,
+the report-back:
+
+- **All four families ran**, first real execution of `seam/real.py`: encodec24k
+  (z,d1,d2,d4,d8), wavlm (l1..l24), dac44k (z,d1..d8), mimi (semantic, acoustic).
+  Every variant `device == "cuda"`, shapes `[T, D]`, sane fps (75.0 / 49.8 / 86.2 / 12.5).
+- **D6 reconciliation: no-op.** Real latent dims match the nominal `REAL_SPECS`
+  stand-ins exactly (128 / 1024 / 1024 / 512). `REAL_SPECS` + `configs/models.yaml`
+  untouched; `test_config` green by construction.
+- **Zero `_encode_*` touch-ups.** The flagged risks (Mimi semantic/acoustic split,
+  RVQ depth partial decodes) worked as written — including against
+  **transformers 5.15.1**, a major version above the `>=4.40` pin.
+- **Parity 4/4; full suite 153 passed / 2 skipped** (the 3 Mac-skipped parity tests
+  now run); smoke: 170 latents (10 clips × 17 variants), all four `available: True`.
+- **Windows install deviation from the Makefile:** venv created manually
+  (`.venv/Scripts/`, not `bin/`); torch/torchaudio installed from the cu128 index
+  **before** the `[gpu]` extra — PyPI torch wheels are CPU-only on Windows and
+  would have silently produced a CUDA-less box. Landed: torch 2.11.0+cu128,
+  torchaudio 2.11.0+cu128, descript-audio-codec 1.0.0.
+- **Windows console quirk:** `make smoke`'s banner glyphs crash cp1252; run with
+  `PYTHONIOENCODING=utf-8`. HF cache pinned via `HF_HOME=data/hf-cache`.
+
+Gate 1 pending Job B (VCTK 0.92 staged for the grouped manifest).
+
 ## Final 5-elder ring — whole-repo completion pass (2026-07-13)
 
 Physics, adversarial, architect, testing, integration reviewed the complete repo.
