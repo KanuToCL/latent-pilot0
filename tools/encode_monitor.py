@@ -3,7 +3,8 @@ directory and the job log; owns the job subprocess (Ctrl+O start / Ctrl+P pause)
 Pausing is always safe: the cache is atomic + resume-safe.
 
 Usage (own terminal window):  .venv/Scripts/python tools/encode_monitor.py [--autostart]
-Closing this window also stops a running job (it is a child process).
+The job runs DETACHED: closing this window leaves it running; reopening the
+panel reattaches via data/job_b.pid. Only ^P (or taskkill) stops the job.
 """
 from __future__ import annotations
 
@@ -50,27 +51,56 @@ def expected_counts() -> dict[tuple[str, str], int]:
     return out
 
 
+_count_cache: tuple[float, dict] = (0.0, {})
+COUNT_TTL_S = 20.0  # audit: don't re-walk 338k files every 2 s against the encoder
+
+
 def cached_counts() -> dict[tuple[str, str], int]:
+    global _count_cache
+    ts, cached = _count_cache
+    if time.time() - ts < COUNT_TTL_S:
+        return cached
     out: dict[tuple[str, str], int] = {}
-    if not CACHE.exists():
-        return out
-    for version_dir in CACHE.iterdir():
-        for name_dir in (d for d in version_dir.iterdir() if d.is_dir()):
-            for var_dir in (d for d in name_dir.iterdir() if d.is_dir()):
-                out[(name_dir.name, var_dir.name)] = sum(1 for _ in var_dir.glob("*.npz"))
+    if CACHE.exists():
+        for version_dir in CACHE.iterdir():
+            for name_dir in (d for d in version_dir.iterdir() if d.is_dir() and d.name != "headroom"):
+                for var_dir in (d for d in name_dir.iterdir() if d.is_dir()):
+                    key = (name_dir.name, var_dir.name)  # sum across cache versions (audit note)
+                    out[key] = out.get(key, 0) + sum(1 for _ in var_dir.glob("*.npz"))
+    _count_cache = (time.time(), out)
     return out
 
 
+PIDFILE = ROOT / "data" / "job_b.pid"
+
+
 class JobController:
-    """Owns the job_b_run.py subprocess. terminate() is safe mid-encode
-    (atomic cache writes); a restart resumes from the cache."""
+    """Controls a DETACHED job_b_run.py: the encoder survives this panel closing
+    (post-audit — the old parent/child design killed overnight runs on window
+    close). Reattaches via pid file. Kill is safe mid-encode: atomic cache."""
 
     def __init__(self) -> None:
         self.proc: subprocess.Popen | None = None
+        self._log = None
+
+    def _pidfile_pid(self) -> int | None:
+        try:
+            pid = int(PIDFILE.read_text())
+            if psutil.pid_exists(pid) and "python" in psutil.Process(pid).name().lower():
+                return pid
+        except (FileNotFoundError, ValueError, psutil.Error):
+            pass
+        return None
+
+    @property
+    def pid(self) -> int | None:
+        if self.proc is not None and self.proc.poll() is None:
+            return self.proc.pid
+        return self._pidfile_pid()
 
     @property
     def running(self) -> bool:
-        return self.proc is not None and self.proc.poll() is None
+        return self.pid is not None
 
     def start(self) -> None:
         if self.running:
@@ -80,25 +110,31 @@ class JobController:
                "HF_HUB_DISABLE_SYMLINKS_WARNING": "1",
                "PYTHONIOENCODING": "utf-8"}
         LOG.parent.mkdir(parents=True, exist_ok=True)
+        self._log = open(LOG, "ab")
         self.proc = subprocess.Popen(
             [str(ROOT / ".venv" / "Scripts" / "python.exe"), "-u", str(ROOT / "tools" / "job_b_run.py")],
-            stdout=open(LOG, "ab"), stderr=subprocess.STDOUT, cwd=ROOT, env=env,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+            stdout=self._log, stderr=subprocess.STDOUT, cwd=ROOT, env=env,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
         )
+        PIDFILE.write_text(str(self.proc.pid))
 
     def stop(self) -> None:
-        if self.running:
-            self.proc.terminate()
-            self.proc.wait(timeout=15)
+        pid = self.pid
+        if pid is not None:  # /T kills grandchildren (ffmpeg), /F is safe: atomic cache
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+        if self._log:
+            self._log.close()
+            self._log = None
+        PIDFILE.unlink(missing_ok=True)
 
 
 def job_status(job: JobController) -> Text:
-    if job.running:
-        return Text.assemble(("● RUNNING", "bold bright_green"), (f"  pid {job.proc.pid}", "dim"),
-                             ("    ^P pause   ^O (re)start", "dim"))
-    ended = job.proc is not None
-    label = "■ PAUSED — cache kept, restart resumes" if ended else "○ IDLE — not started"
-    return Text.assemble((label, "bold yellow"), ("    ^O start   ^P pause", "dim"))
+    pid = job.pid
+    if pid is not None:
+        return Text.assemble(("● RUNNING (detached — survives closing this window)", "bold bright_green"),
+                             (f"  pid {pid}", "dim"), ("    ^P pause   ^O start", "dim"))
+    return Text.assemble(("■ NOT RUNNING — cache kept, ^O resumes where it left off", "bold yellow"),
+                         ("    ^O start   ^P pause", "dim"))
 
 
 def headroom_status() -> Text:
@@ -109,7 +145,9 @@ def headroom_status() -> Text:
     if rates <= done:
         return Text("headroom scalars: all rates ready", style="green")
     pend = ", ".join(f"{r // 1000}k" for r in sorted(rates - done))
-    return Text(f"phase: headroom scan (one-time per rate; pending: {pend}) — no latents cached until a scan completes",
+    if sum(cached_counts().values()) > 0:  # latents flowing; remaining scans run when their encoder starts
+        return Text(f"headroom: pending {pend} (each scan runs when its encoder starts)", style="dim")
+    return Text(f"phase: headroom scan (one-time per rate; pending: {pend}) — no latents cached until the first scan completes",
                 style="bold yellow")
 
 
@@ -164,7 +202,7 @@ def render(expected, history, t0, job: JobController) -> Panel:
     hdr = Text.assemble(
         (f"{done:,} / {total:,} latents", "bold bright_green"),
         (f"   {rate * 60:,.0f}/min", "green"),
-        (f"   ETA {eta / 3600:.1f} h" if eta != float("inf") else "   ETA —", "green"),
+        (f"   ETA~ {eta / 3600:.1f} h (rough: per-encoder cost varies ~100x)" if eta != float("inf") else "   ETA —", "green"),
         (f"   elapsed {(now - t0) / 60:.0f} min", "dim"),
     )
     tail = Text("\n".join(log_tail()), style="dim")
@@ -197,8 +235,8 @@ def main() -> None:
                         elif key == b"\x10":  # Ctrl+P
                             job.stop()
                     time.sleep(0.05)
-    finally:
-        job.stop()  # window closed / crashed -> don't orphan the encoder
+    except KeyboardInterrupt:
+        pass  # panel exit NEVER kills the detached job (audit: overnight-run safety)
 
 
 if __name__ == "__main__":

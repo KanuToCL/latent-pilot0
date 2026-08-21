@@ -2,6 +2,33 @@
 
 Running log of choices that would otherwise be invisible in the code. Newest first.
 
+## Job B corpus + post-audit hardening (2026-08-21, evening)
+
+Independent Opus audit of the bring-up caught real defects before the overnight
+run; all applied:
+
+- **Corpus (now reproducible via `tools/stage_vctk.py` + `tools/build_real_manifest.py`):**
+  VCTK 0.92, mic1 only, 5 clips/speaker preferring 4–10 s, staged PCM_16 @48 kHz.
+  510 sources / 102 speakers (the 510-cap tail-truncates the last 8 speakers by
+  sort order: p360–p364, p374, p376, s5 — capacity, not quality). **Caveat
+  (audit W7):** clips concentrate in utt 002–008, so train/test speakers read
+  the SAME passages — Gate 1 is content-controlled; it carries no
+  content-generalization claim. Follow-up arm should draw utt ≥025.
+- **Disk (audit C2):** full-frame cache ≈ 300+ GB > D:'s 173 GB free. `data/cache`
+  is now an NTFS junction → `C:\pilot0-cache` (785 GB free). Corpus/manifest
+  untouched, so `cache_version` and all future latents stay valid.
+- **Runner (audit C4/C5):** `Gate1Decision.passed`/`margin_over_floor` etc. are
+  @properties and vanish under `dataclasses.asdict` — the report would have
+  carried NO verdicts, and a `SeverityResult.pooled` typo would have crashed the
+  summary. Decisions now serialized explicitly; caveats (unconfirmed winner —
+  the §2.5 confirmation split remains unimplemented — and content-control) are
+  embedded in `gate1_real.json` itself.
+- **Monitor (audit C3):** the panel owned the job as a child and killed it on
+  window close (`finally: stop()`), which had already produced a silent death
+  loop — the headroom scan persists nothing until complete, so four attempted
+  starts left zero state. Job is now spawned DETACHED with a pid-file;
+  the panel is a reattachable cockpit, only ^P kills.
+
 ## Job A — fake→real bring-up complete (2026-08-21)
 
 Ran on a Windows 11 box (RTX 5070 12 GB, Ryzen 9, 96 GB RAM), not the GB10 the
