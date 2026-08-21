@@ -112,7 +112,7 @@ class JobController:
         LOG.parent.mkdir(parents=True, exist_ok=True)
         self._log = open(LOG, "ab")
         self.proc = subprocess.Popen(
-            [str(ROOT / ".venv" / "Scripts" / "python.exe"), "-u", str(ROOT / "tools" / "job_b_run.py")],
+            [str(ROOT / ".venv" / "Scripts" / "python.exe"), "-u", str(ROOT / "tools" / "job_b_parallel.py")],
             stdout=self._log, stderr=subprocess.STDOUT, cwd=ROOT, env=env,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
         )

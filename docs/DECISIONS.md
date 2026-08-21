@@ -29,6 +29,14 @@ run; all applied:
   starts left zero state. Job is now spawned DETACHED with a pid-file;
   the panel is a reattachable cockpit, only ^P kills.
 
+- **Parallel encode topology (operator, no pipeline edits):** the render path is
+  single-threaded, so the six encoders now run as six concurrent worker
+  processes (`tools/job_b_parallel.py` → `encode_worker.py` each), sharing the
+  GPU. Safe by construction: cache paths are disjoint per encoder, headroom
+  scans are deterministic + atomically written (concurrent duplicates converge),
+  and row-sharding is explicitly NOT used — it would fragment the corpus-global
+  headroom scalar. Gate 1 still runs through the canonical `job_b_run.main()`.
+
 ## Job A — fake→real bring-up complete (2026-08-21)
 
 Ran on a Windows 11 box (RTX 5070 12 GB, Ryzen 9, 96 GB RAM), not the GB10 the
