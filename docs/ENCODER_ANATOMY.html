@@ -66,6 +66,27 @@
 
 <div class="warn"><strong>Scope note:</strong> all figures use EnCodec-24k (conv codec, local context). WavLM's pictures would differ in one deep way — its transformer gives every frame global context, so even a local glitch can perturb <em>distant</em> frames. Same [T, D] contract, different physics of spread.</div>
 
+<h2>6 · What the code is made of — the Monet principle</h2>
+<div class="card">
+  <p>So where do 128 particular numbers <em>come from</em>? Training: encoder → tight bottleneck → decoder, graded only on rebuilding the waveform from as few bits as possible. Nobody chose what to extract. The latent is <strong>whatever description survives the squeeze and still lets the decoder rebuild the sound</strong> — a private shorthand between encoder and decoder, with exactly one fluent reader.</p>
+  <p>Two consequences carry everything in this pilot:</p>
+  <p><strong>No privileged basis.</strong> Rotate the latent space and let the decoder absorb the inverse rotation — compression is identical, the loss can't tell. The axes you got are an accident of initialization. Dim 77 "means" nothing, the way north on a map with no compass rose means nothing. Rotations can't destroy <em>distances, angles, directions</em> — so meaning lives in geometry, never in coordinates. (This is why §2's correlation map <em>had</em> to be a smear.)</p>
+  <p><strong>The vocabulary is the training world.</strong> Imagine a codec trained only on Monet paintings: it compresses Monets brilliantly — and describes <em>any</em> input in Monet vocabulary, because that's all it has.</p>
+<pre>
+ON-manifold   speech, music, hum, hiss, crackle — things real recordings contain
+              → compact, faithful shorthand ("a Monet, described by the Monet expert")
+
+OFF-manifold  alien textures, synthetic artifacts the training world never showed it
+              → described as the NEAREST expressible natural sound
+                ("a Picasso, rendered as the closest possible Monet")
+</pre>
+  <p>Snap the pilot onto that frame:</p>
+  <p>· <em>Why the wager is hopeful:</em> our 7 damage families all exist in real recordings — the codec has native vocabulary for them, and it is <strong>contractually obligated</strong> to encode them: a codec that dropped the crackle would play back clean audio and fail its own reconstruction loss. The open question was never "is the damage in there" — it's "is it <em>linearly accessible</em>?"</p>
+  <p>· <em>Why WavLM is the contrast case:</em> different pressure (predict masked speech from context) → it must keep what's <em>predictable</em> — phonetics, speaker — and may legally discard noise. Same contract shape, opposite incentives.</p>
+  <p>· <em>Why the OOD phase exists:</em> Phase 7b feeds deliberately off-manifold textures (FM tangles, granular clouds, chirps) to watch the vocabulary break — the Picasso test. And the generated-audio endgame lives exactly there: a generator's failures are often subtly off-manifold (vocoder buzz no natural recording contains), which a codec-based metric might describe as "the nearest natural sound" and under-report. Mapping where that blind spot begins is thesis territory.</p>
+  <p style="color:var(--dim)">One line to keep: <em>a codec is an expert witness — fluent, but only in the world it grew up in. The metric question is what its testimony is worth at the edges of that world.</em></p>
+</div>
+
 <footer>
   Generated from real latents on 2026-08-21 (RTX 5070, frozen <code>facebook/encodec_24khz</code>).
   Companions: <span style="font-family:var(--mono)">FIELD_GUIDE.html</span> (the project, zoomed) ·
