@@ -539,3 +539,46 @@ consistent mode per arm.
 algebra + storage self-consistency (measured recomputes the ratio that set the
 gain), not proof the physical SNR is achieved. Independent checks (injected-noise
 spectral slope, real clipping, stopband attenuation) live in `tests/test_degrade.py`.
+
+## Gate 1 — first real-corpus run: FAIL, and the failure has structure (2026-08-22)
+
+Job B complete: cache 338,130/338,130 cells, all six encoders, zero worker
+failures. Gate 1 ran per the frozen protocol (55.7 min): 34 common conditions,
+20 test groups (>= 3, so NOT underpowered — this is a clean fail, not a power
+fail). Floor = log-mel macro-F1 0.906 [0.885, 0.925]; energy control 0.638.
+Full report: `reports/gate1_real.json` (local; reports/ is gitignored).
+
+**All 17 candidates FAIL the pre-registered conjunction.** The decomposition
+is the finding:
+
+- **G1a type** (beat mel floor by >= 0.05, candidate CI-lower vs floor
+  CI-upper): passed ONLY by wavlm l1 (0.988, margin +0.056) and l6 (0.985,
+  +0.052). Every codec sits BELOW the mel floor on damage-type ID
+  (encodec ~0.84, dac ~0.88-0.89, mimi acoustic 0.862).
+- **G1b severity** (without-clean SRCC CI-lower >= 0.80 on >= 4/7 families
+  AND >= 0.05 over the energy control): nobody reaches 4/7. encodec 3/7 at
+  every depth; wavlm l1/l6 2/7; dac 1-2/7; mimi 0-1/7. Absolute SRCCs are
+  often high (encodec z: noise .980, hum .977, hiss .952) — the margin over
+  the level-only control is what's thin: severity is largely energy-explained.
+
+**Predictions made before the run held** (ENCODER_ANATOMY §6, polyglot idea
+doc): WavLM type-F1 decays monotonically with depth, 0.988 (l1) -> 0.906
+(l24 = exactly the floor), severity passes 2 -> 0 — deeper layers abstract
+toward phonetics and legally discard damage. Mimi's semantic path is
+near-blind to damage type (0.402 vs 0.862 acoustic).
+
+**One-line reading:** WavLM's early layers read WHAT (and beat spectral
+statistics at it); EnCodec comes closest on HOW MUCH; nothing reads both.
+Type identity is linearly accessible; the non-loudness severity residual is
+thin everywhere.
+
+**Bounds on the claim:** winner-confirmation split unimplemented;
+content-controlled corpus (train/test share VCTK passages), which likely
+flatters the mel floor — the content-general arm (utt >= 025) is the
+scheduled follow-up before any strong negative is published.
+
+Per pre-registration, FAIL is a finding (the G1c-style branch: publish the
+negative with the geometry analysis). Next step: RQ2 geometry — descriptive
+cosine/PCA views (`analysis/geometry.py`) plus the shift-vector experiment
+(per-clip delta concentration vs the 1/sqrt(D) null, magnitude-vs-severity,
+persistence under dimension reduction).
