@@ -582,3 +582,31 @@ negative with the geometry analysis). Next step: RQ2 geometry — descriptive
 cosine/PCA views (`analysis/geometry.py`) plus the shift-vector experiment
 (per-clip delta concentration vs the 1/sqrt(D) null, magnitude-vs-severity,
 persistence under dimension reduction).
+
+## RQ2 shift-vector geometry — directions are real everywhere probes struggled (2026-08-22)
+
+Full 18-candidate sweep (`tools/geometry_run.py`, 49 min, reports/geometry_real.json
++ figures/geometry/). Per-clip Δ = x(dirty) − x(clean) paired by source,
+standardized basis, exact all-pairs concentration, isotropic 1/sqrt(D) null.
+
+- **Per-family Δ directions concentrate at 9–30x the null in every candidate
+  except mimi:semantic.** Median family mean-cosine: wavlm l1 0.65 (29.5x null,
+  D=2048), dac d1 0.66 (29.7x), encodec z 0.63 (10.1x), logmel 0.60 (11.7x).
+- **||Δ|| tracks severity everywhere**: SRCC medians 0.83–0.97; wavlm l1 the
+  most consistent (min family 0.92).
+- **Reduction persistence**: encodec z and wavlm l1 keep min-family
+  concentration 0.89 / 0.91 after PCA to k=2; deeper wavlm layers collapse
+  (l18 k=2 min 0.04) — the same early-layer story as the probes.
+- **mimi:semantic is the negative control and behaves like one**: median
+  concentration 0.069 (2.2x null), k=2 min 0.046 — the path distilled to
+  discard acoustics has essentially no damage geometry, matching its 0.402
+  type-F1.
+- Caveats embedded in the artifact (descriptive/in-sample, standardized basis,
+  isotropic null only, ||Δ|| never comparable across candidates, plus both
+  Gate-1 corpus caveats).
+
+Reading with Gate 1: the damage AXES exist and survive reduction; what Gate 1
+punished was margins over strong baselines (mel floor on type, energy control
+on severity), not the absence of geometry. logmel itself concentrates at 11.7x
+null — spectral statistics have geometry too; the null-relative gap of wavlm l1
+over the floor is the concrete positive to carry forward.
