@@ -11,7 +11,7 @@ import pytest
 from pilot0.audio.synth import synth_clip
 from pilot0.combos.additivity import additivity
 from pilot0.combos.dataset import ComboData, build_combo_data
-from pilot0.combos.encode import encode_combos
+from pilot0.combos.encode import encode_combos, render_combo
 from pilot0.combos.grid import apply_combo, combo_label, combo_severities
 from pilot0.combos.transfer import transfer_to_combos
 from pilot0.corpus.io import write_audio
@@ -76,6 +76,18 @@ def test_apply_combo_is_ordered_and_finite():
     ba = apply_combo(native, SR, "clip", "noise", SEV)
     assert ab.shape == native.shape and np.isfinite(ab).all()
     assert not np.allclose(ab, ba)  # degradations do not commute → order matters
+
+
+def test_render_combo_is_finite_and_length_preserving_at_native_rate():
+    """Master already AT the native rate → resample_to_native is the identity, so the
+    two-leg render must hand back the same number of samples, all finite. (A master at a
+    different rate legitimately changes length; that is L1 resampling, not this test.)"""
+    sr = 24000
+    master = 0.4 * np.sin(2 * np.pi * 220.0 * np.arange(sr) / sr)
+    for a, b in [("noise", "clip"), ("hiss", "bandlimit"), ("hum", "mp3")]:
+        wav = render_combo(master, sr, sr, a, b, SEV)
+        assert wav.shape == master.shape, f"{a}+{b} changed length"
+        assert np.isfinite(wav).all(), f"{a}+{b} produced non-finite audio"
 
 
 # --- additivity ---------------------------------------------------------------
