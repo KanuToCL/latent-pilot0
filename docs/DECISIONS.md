@@ -610,3 +610,48 @@ punished was margins over strong baselines (mel floor on type, energy control
 on severity), not the absence of geometry. logmel itself concentrates at 11.7x
 null — spectral statistics have geometry too; the null-relative gap of wavlm l1
 over the floor is the concrete positive to carry forward.
+
+## Phase 7 combos — superposition holds for independent artifacts; the interacting pair is a severity-graded interaction readout (2026-08-22)
+
+Full run (`tools/job_c_parallel.py`, 141 min total: 40 min parallel encode of
+4080–22950 combo cells/encoder into the same banked-headroom cache, 141 min
+sequential 18-candidate analysis, reports/combos_real.json). Pairs
+noise+clip / hiss+bandlimit / hum+mp3, severities {2,3,4}, order A-then-B
+fixed; hiss+bandlimit sev2 dropped at 16 kHz (cutoff = Nyquist).
+Additivity = cos(z̄(a+b) − z̄(clean), Δa + Δb), bootstrap CIs, raw +
+standardized bases. Transfer = zero-shot read of combo cells by the
+singles-trained Gate-1 type probe.
+
+- **Non-interacting pairs superpose everywhere.** noise+clip and hum+mp3:
+  additivity cosine +0.98..+1.00 in ALL 18 candidates at every severity —
+  codec latents included. Independent artifacts add linearly even in curved
+  latent spaces; this row of the harness does not discriminate candidates
+  (logmel's +0.989 mean is the expected linear ceiling, and everyone matches
+  it here).
+- **hiss+bandlimit is physically interacting (bandlimit erases the hiss band)
+  and the latents expose it, graded by severity.** Raw cosine sev2→3→4:
+  encodec z 0.927/0.537/0.187, mimi acoustic 0.953/0.573/0.169,
+  wavlm l1 n/a/0.807/0.359, dac z 0.974/0.893/0.761, wavlm l24
+  n/a/0.920/0.895 — while logmel stays 0.965/0.948 (the killed band dominates
+  the sum vector, linearizing over the interaction). Sub-additivity here is
+  fidelity to signal physics, not representational failure; encodec z's clean
+  monotone collapse is effectively an interaction-strength readout.
+- **The single-label probe reads the dominant leg, never both.** noise+clip →
+  "noise" ~1.00 everywhere (clip 0.00); hiss+bandlimit → "bandlimit"
+  0.66–1.00 with hiss ≈ 0 in every candidate except logmel (0.37/0.63);
+  leakage goes to "mp3" (itself band-limiting). hum+mp3 splits between the
+  legs (either 0.89–1.00). Masking is consistent with the A-then-B physics —
+  after severe bandlimiting the hiss evidence is largely gone, so
+  "bandlimit" is arguably the perceptually correct single answer.
+- **mimi:semantic fails transfer exactly as the negative control should**:
+  frac_either 0.45 / 0.43 on the two spectral pairs (vs 0.68–1.00 for
+  everyone else), predictions scattered — third independent instrument
+  agreeing with its 0.402 F1 and 2.2x-null geometry.
+
+Implications for the wheel: axis decomposition of independent artifacts is
+safe in every candidate latent; simultaneous-artifact reporting needs
+multi-label reads (argmax collapses to the dominant leg by construction);
+and interacting pairs need either an interaction term or the encodec-style
+sub-additivity signal itself as a feature. Caveats carried in the artifact:
+descriptive (no pre-registered gate), A-then-B non-commuting order,
+content-controlled corpus, winner-confirmation split still unimplemented.
