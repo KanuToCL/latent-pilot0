@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perception Lab</title>
+<style>
+  :root{--bg:#14161f;--surface:#1d2030;--surface2:#232742;--text:#dfe3f0;--dim:#9aa3bd;--line:#2e3352;
+        --d0:#7aa2f7;--d1:#f7768e;--d2:#9ece6a;--d3:#e0af68;--d4:#bb9af7;--cyan:#7dcfff;
+        --mono:ui-monospace,"Cascadia Code",Consolas,monospace}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:16px/1.65 system-ui,"Segoe UI",sans-serif;
+       max-width:960px;margin:0 auto;padding:2.5rem 1.25rem 4rem}
+  h1{font-size:1.9rem}.sub{color:var(--dim);margin:.35rem 0 2rem}
+  h2{font-size:1.25rem;margin:2.6rem 0 .3rem;display:flex;align-items:center;gap:.55rem}
+  .dot{width:.8rem;height:.8rem;border-radius:50%;flex:none}
+  .depth0 .dot{background:var(--d0)}.depth1 .dot{background:var(--d1)}.depth2 .dot{background:var(--d2)}
+  .depth3 .dot{background:var(--d3)}.depth4 .dot{background:var(--d4)}
+  .why-h{color:var(--dim);font-size:.92rem;margin-bottom:1rem}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:1rem 1.15rem;margin-bottom:.9rem}
+  .card h3{font-size:1.02rem;margin-bottom:.35rem}
+  p{margin-bottom:.6rem}
+  a{color:var(--cyan);text-decoration:none;border-bottom:1px solid var(--line)}
+  a:hover{border-color:var(--cyan)}
+  code{font-family:var(--mono);font-size:.84rem;color:var(--cyan);background:var(--surface2);padding:.05rem .35rem;border-radius:4px}
+  .thesis{background:var(--surface2);border-left:3px solid var(--d3);border-radius:0 8px 8px 0;
+          padding:.6rem .9rem;margin:.7rem 0 .2rem;font-size:.9rem}
+  .thesis strong{color:var(--d3)}
+  .go{color:var(--dim);font-size:.86rem;margin-top:.45rem}
+  .go a{color:var(--text)}
+  pre{background:#101218;border:1px solid var(--line);border-radius:8px;padding:.8rem 1rem;
+      font-family:var(--mono);font-size:.82rem;line-height:1.55;overflow-x:auto;margin:.6rem 0;color:var(--dim)}
+  pre em{color:var(--d2);font-style:normal}
+  table{border-collapse:collapse;width:100%;font-size:.88rem;margin:.6rem 0}
+  th,td{border:1px solid var(--line);padding:.45rem .6rem;text-align:left;vertical-align:top}
+  th{background:var(--surface2);color:var(--dim);font-weight:600}
+  .tablewrap{overflow-x:auto}
+  em{color:var(--d2);font-style:normal}
+  footer{margin-top:3rem;color:var(--dim);font-size:.85rem}
+  .accessnote{color:var(--dim);font-size:.8rem}
+</style>
+</head>
+<body>
+
+<h1>Perception Lab</h1>
+<div class="sub">The science of hearing what isn't there — and why it's the blueprint for a listening metric.
+Layered: each depth goes further than the last. Play the demos at Depth 1 before reading anything else.
+Progress tracking for these resources lives in the <span style="font-family:var(--mono)">MATH_BRUSHUP.html</span> perception track.</div>
+
+<h2 class="depth0"><span class="dot"></span>Depth 0 · The claim</h2>
+<div class="why-h">One paragraph. Everything below is evidence for it.</div>
+<div class="card">
+  <p><strong>Perception is not reception.</strong> Your auditory system does not deliver sound to you — it delivers its <em>best guess about what caused the sound</em>, computed from a prior built over a lifetime. The percept you experience is the guess, not the signal. When signal is ambiguous, degraded, or missing, the prior fills in — confidently, seamlessly, without a warning flag.</p>
+  <p>Which is exactly what a neural codec does (<span style="font-family:var(--mono)">ENCODER_ANATOMY.html</span> §6, the Monet principle): describe every input in the vocabulary of its training world, nearest-expressible-sound, no error signal. Your brain is an encoder trained on your native language. The demos below let you <em>catch it in the act</em>.</p>
+</div>
+
+<h2 class="depth1"><span class="dot"></span>Depth 1 · Feel it — the playable illusions</h2>
+<div class="why-h">Each demo isolates one piece of the machinery. ~1 hour total to play all six.</div>
+
+<div class="card">
+  <h3>Sine-wave speech — installing a prior in one shot</h3>
+  <p>Speech reduced to three whistling sine tracks. First listen: alien R2-D2 chirps. Then you hear the original sentence once. Now replay the whistles — <em>they are speech, permanently</em>. The signal never changed; your decoder did. This is the cleanest demonstration that the percept lives in the prior, not the waveform.</p>
+  <div class="thesis"><strong>Thesis link:</strong> the ON/OFF-manifold boundary is movable. One exposure dragged the whistles onto your speech manifold. A codec's manifold is frozen at train time — it can never have this "aha" — but a metric with test-time adaptation (anchor D, the iterative listener) could.</div>
+  <div class="go">Go deeper: <a href="http://www.lifesci.sussex.ac.uk/home/Chris_Darwin/SWS/">Chris Darwin's SWS demo page (Sussex)</a> <span class="accessnote">· if the link is down, go via <a href="https://users.sussex.ac.uk/~cjd/">users.sussex.ac.uk/~cjd</a></span></div>
+</div>
+
+<div class="card">
+  <h3>Phonemic restoration — hearing a phoneme that was deleted</h3>
+  <p>Cut the /s/ out of "legi_lature", splice a cough over the gap. Listeners hear the /s/ — clearly — and cannot locate the cough. The brain reconstructs the missing phoneme from context and <em>presents the reconstruction as sensation</em>. Warren, 1970; still startling.</p>
+  <div class="thesis"><strong>Thesis link:</strong> this is why "the codec is contractually obligated to encode the damage" matters. Your ears would <em>repair</em> a dropout; the codec must transmit it. The metric reads the codec precisely because it doesn't hallucinate the fix — and human MOS raters partially do, which Gate 2 will have to live with.</div>
+  <div class="go">Go deeper: <a href="https://condor.depaul.edu/dallbrit/extra/psy404/phonemic-restoration-demonstration.html">DePaul interactive demo</a> — ~10 min</div>
+</div>
+
+<div class="card">
+  <h3>Yanny/Laurel &amp; Green Needle/Brainstorm — ambiguity resolved by prior</h3>
+  <p>One clip, two stable percepts. Yanny/Laurel splits on which frequency band your system weights (age, playback device, expectation). Green Needle/Brainstorm is stronger: <em>the word you think about is the word you hear</em> — attention selects the prior, the prior writes the percept, on demand, reversibly.</p>
+  <div class="thesis"><strong>Thesis link:</strong> a single latent point decoded two ways by two priors — the routing picture (anchor B). Ambiguity isn't noise on one answer; it's two experts claiming the same input. Routing entropy is the honest output there, not a forced label.</div>
+  <div class="go">Go deeper: <a href="https://pc.cogs.indiana.edu/auditoryambiguity/">Indiana U dual-ambiguity player</a> (both illusions, frequency sliders) · <a href="https://www.nytimes.com/interactive/2018/05/16/upshot/audio-clip-yanny-laurel-debate.html">NYT Yanny/Laurel slider</a> <span class="accessnote">(may paywall — the IU player covers it)</span></div>
+</div>
+
+<div class="card">
+  <h3>McGurk effect — vision overwrites audition</h3>
+  <p>Audio says "ba", lips say "ga", you hear "da" — a sound present in <em>neither</em> stream. Knowing the trick doesn't break it. The percept is a fusion computed below the level you can inspect: priors from one modality re-writing "raw" sensation in another.</p>
+  <div class="thesis"><strong>Thesis link:</strong> percepts are committee outputs, not sensor readings. Any metric that claims to predict "what a human hears" is predicting an inference, not an acoustic fact — the deep reason reference-free quality metrics are possible at all.</div>
+  <div class="go">Go deeper: <a href="https://www.youtube.com/watch?v=ypd5txtGdGw">BBC Horizon demo</a> — 5 min</div>
+</div>
+
+<div class="card">
+  <h3>Speech-to-song — repetition flips the category</h3>
+  <p>Diana Deutsch's "sometimes behave so strangely": a spoken phrase, looped. Around the 4th repetition it <em>becomes melody</em> — and once flipped, the original full sentence sounds like the speaker bursts into song mid-sentence. Zero signal change; pure recategorization.</p>
+  <div class="thesis"><strong>Thesis link:</strong> evidence accumulation with hysteresis (anchor D). The percept is a running posterior that <em>commits</em> — more input can flip it, and the flip sticks. One-pass feedforward codecs have no analog of "listening again".</div>
+  <div class="go">Go deeper: <a href="https://deutsch.ucsd.edu/psychology/pages.php?i=212">Deutsch's demo page (UCSD)</a> <span class="accessnote">· browser may warn about the site certificate — the audio is fine</span></div>
+</div>
+
+<div class="card">
+  <h3>Categorical perception — the /ba/–/pa/ cliff</h3>
+  <p>Voice-onset time is a continuous physical knob. Sweep it and your percept doesn't sweep — it <em>jumps</em>: /ba/, /ba/, /ba/, /pa/. Discrimination is razor-sharp at the boundary and nearly blind inside a category. The continuous world arrives; a discrete world is delivered.</p>
+  <div class="thesis"><strong>Thesis link:</strong> this is quantization — RVQ codebooks do the same thing to latent space (snap continuous z to discrete codes). Depth taps d1…d8 ask how much of the continuum survives the snapping; Gate 1 severity asks the same about the damage dose.</div>
+  <div class="go">Go deeper: <a href="https://faculty.college.emory.edu/sites/wyttenbach/psycog/lang/phon/index.html">Emory interactive VOT experiment</a> (run it on yourself, ~15 min) · <a href="https://open.lib.umn.edu/sensationandperception/chapter/categorical-perception/">UMN open-textbook chapter</a></div>
+</div>
+
+<h2 class="depth2"><span class="dot"></span>Depth 2 · How the prior gets built — the developmental evidence</h2>
+<div class="why-h">You weren't born with the cliff. You carved it — and paid for it with the axes you pruned.</div>
+
+<div class="card">
+  <h3>Kuhl's perceptual magnet &amp; Werker's narrowing</h3>
+  <p><strong>The universal infant.</strong> At 6 months, babies discriminate phoneme contrasts from <em>any</em> language — Hindi dental/retroflex, Salish uvulars, all of it. They are, briefly, citizens of every phonology.</p>
+  <p><strong>The narrowing (Werker).</strong> Between 6 and 12 months, discrimination of non-native contrasts collapses while native contrasts sharpen. The general-purpose ear is traded for a specialized one — a feature, not a loss: specialization is what makes native speech perception fast and noise-robust.</p>
+  <p><strong>The magnet (Kuhl).</strong> The mechanism: native-language prototypes act like magnets, warping perceptual space so nearby sounds get pulled toward the prototype and become indistinguishable from it. An adult Japanese listener doesn't <em>ignore</em> the /r/–/l/ difference — the axis it lived on has been collapsed. The information arrives at the cochlea and dies in the encoder.</p>
+  <div class="thesis"><strong>Thesis link:</strong> this is the Monet principle with a growth curve. Training <em>prunes the basis</em> to the training manifold — infant → adult is exactly random-init → converged codec. "Hearing Swahili through English ears" is the documented adult condition, and WavLM discarding noise while keeping phonetics is the same trade Werker's infants made.</div>
+  <div class="go">Go deeper: <a href="https://www.pnas.org/doi/10.1073/pnas.97.22.11850">Kuhl, PNAS — a new view of language acquisition</a> · <a href="https://www.pnas.org/doi/10.1073/pnas.0904134106">Werker, PNAS — perceptual narrowing</a> (both open, skim figures first)</div>
+</div>
+
+<h2 class="depth3"><span class="dot"></span>Depth 3 · The theory that unifies it — perception as controlled hallucination</h2>
+<div class="why-h">One framework predicts every demo above.</div>
+
+<div class="card">
+  <h3>Predictive coding</h3>
+  <p>The brain doesn't process sound bottom-up. It runs a generative model <em>downward</em> — "here is what I expect to hear next" — and the upward signal carries only the <strong>prediction error</strong>. Perception is the model's running best guess, continuously corrected by error. Anil Seth's phrase: a <em>controlled hallucination</em> — controlled by the world, but authored by the model.</p>
+<pre>
+prior (expectation)  ──predict──▶  expected sound
+                                        │ compare
+actual sound  ─────────────────▶  <em>prediction error</em>  ──update──▶  percept
+</pre>
+  <p>Every Depth-1 demo is this loop caught mispredicting: restoration = error silenced by strong prior; sine-wave speech = new prior installed, error vanishes; Green Needle = attention selects which prior predicts; McGurk = visual prediction wins the arbitration; speech-to-song = the posterior flips basins.</p>
+  <div class="thesis"><strong>Thesis link:</strong> anchor D verbatim. Analysis-by-synthesis — encode → predict → compare → re-encode the residual — is a <em>metric architecture</em>: spend compute where prediction error stays high, exactly like a human leaning closer to a bad phone line.</div>
+  <div class="go">Go deeper: <a href="https://www.ted.com/talks/anil_seth_your_brain_hallucinates_your_conscious_reality">Anil Seth, TED — your brain hallucinates your conscious reality</a> (17 min, the canonical intro) · <a href="https://ed.ted.com/lessons/your-brain-hallucinates-your-conscious-reality-anil-seth">TED-Ed animated version</a> (5 min)</div>
+</div>
+
+<h2 class="depth4"><span class="dot"></span>Depth 4 · The machinery — three tricks the codec doesn't have</h2>
+<div class="why-h">The ML vocabulary for each brain trick. This is where the thesis anchors live.</div>
+
+<div class="card">
+  <h3>Routing — mixture of experts (→ anchor B)</h3>
+  <p>The polyglot doesn't average Russian and Ukrainian priors — a <em>gate</em> picks one, provisionally, and can switch ("wait, that word is Ukrainian"). In ML: mixture-of-experts — a small gating network routes each input to specialized sub-models; only the chosen experts fire. The gate's <em>entropy</em> is a confidence signal for free: sharp routing = sure; split routing = genuinely ambiguous input.</p>
+  <div class="go">Go deeper: <a href="https://newsletter.maartengrootendorst.com/p/a-visual-guide-to-mixture-of-experts">Grootendorst — A Visual Guide to Mixture of Experts</a> (50+ diagrams, 30 min — the best visual MoE intro that exists)</div>
+</div>
+
+<div class="card">
+  <h3>Evidence accumulation — drift-diffusion (→ anchor D)</h3>
+  <p>"Let me hear more" formalized: evidence accumulates as a noisy random walk toward one of two decision boundaries; hit a boundary, commit. Drift rate = evidence quality; boundary height = caution. Fits human reaction times and error patterns eerily well — <em>time-to-decision is itself a confidence readout</em>.</p>
+  <div class="go">Go deeper: <a href="https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2022.1039172/full">Frontiers tutorial — drift-diffusion without heavy math</a> (20 min) · <a href="https://link.springer.com/article/10.1007/s00426-018-1112-6">interactive visualizer paper</a> (drag drift/boundary/noise, watch RT distributions move)</div>
+</div>
+
+<div class="card">
+  <h3>Metacognition — knowing what you don't know (→ anchor C)</h3>
+  <p>Hearing a language you can't even place, you know two things at once: (1) it's speech, (2) <em>you don't speak it</em>. That second signal — confidence about your own perception — is metacognition, and it's the channel codecs entirely lack. A codec always outputs its best Monet; it has no "I am off my manifold" wire. Humans have it, imperfectly — we're systematically overconfident, which is its own lesson for calibrating any confidence output.</p>
+  <div class="thesis"><strong>Thesis link:</strong> anchor C is literally "build this wire": an explicit distance-from-manifold output validated on known OOD before it judges generated audio. The missing organ, made first-class.</div>
+  <div class="go">Go deeper: <a href="https://www.youtube.com/watch?v=qYtklihV7KA">What Is Metacognition (10 min intro)</a> · <a href="https://www.veritasium.com/videos/2025/12/25/why-people-are-so-confident-when-theyre-wrong">Veritasium — why people are so confident when they're wrong</a> (Dunning-Kruger, 20 min)</div>
+</div>
+
+<h2 class="depth0" style="margin-top:2.8rem"><span class="dot" style="background:var(--cyan)"></span>The bridge — one table to keep</h2>
+<div class="tablewrap">
+<table>
+  <tr><th>Phenomenon (you can play it)</th><th>Brain mechanism</th><th>Codec analog</th><th>Thesis anchor</th></tr>
+  <tr><td>Sine-wave speech "aha"</td><td>One-shot prior installation</td><td>Frozen manifold — <em>can't</em> do this</td><td>D (test-time adaptation)</td></tr>
+  <tr><td>Phonemic restoration</td><td>Prediction fills the gap</td><td>Codec must encode the gap instead</td><td>A (damage stays legible)</td></tr>
+  <tr><td>Green Needle / Yanny-Laurel</td><td>Attention selects the prior</td><td>Two experts claim one input</td><td>B (routing entropy)</td></tr>
+  <tr><td>McGurk</td><td>Cross-modal arbitration</td><td>Percept = committee inference</td><td>why reference-free is possible</td></tr>
+  <tr><td>Speech-to-song flip</td><td>Posterior commits with hysteresis</td><td>One-pass encoder never re-listens</td><td>D (iterative listener)</td></tr>
+  <tr><td>/ba/–/pa/ cliff</td><td>Categorical quantization</td><td>RVQ codebook snapping</td><td>A (depth taps d1…d8)</td></tr>
+  <tr><td>Kuhl magnet / Werker narrowing</td><td>Basis pruned to native manifold</td><td>Training = manifold specialization</td><td>Monet principle itself</td></tr>
+  <tr><td>"I don't speak this"</td><td>Metacognitive confidence</td><td><em>Missing.</em> No unfamiliarity wire</td><td>C (the second pilot)</td></tr>
+</table>
+</div>
+
+<footer>
+  Written 2026-08-22, links verified same day by scout.
+  Companions: <span style="font-family:var(--mono)">docs/plans/2026-08-22-polyglot-listener.idea.md</span> (the thesis anchors) ·
+  <span style="font-family:var(--mono)">ENCODER_ANATOMY.html</span> §6 (the Monet principle) ·
+  <span style="font-family:var(--mono)">MATH_BRUSHUP.html</span> (perception track = these links with progress checkboxes).
+</footer>
+
+</body>
+</html>

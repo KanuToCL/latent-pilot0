@@ -24,6 +24,7 @@
   h2 { font-size: 1.25rem; margin: 2.4rem 0 .3rem; display: flex; align-items: center; gap: .55rem; }
   .tierdot { width: .8rem; height: .8rem; border-radius: 50%; display: inline-block; flex: none; }
   .tier1 .tierdot { background: var(--t1); } .tier2 .tierdot { background: var(--t2); } .tier3 .tierdot { background: var(--t3); }
+  .tier4 .tierdot { background: var(--inter); } .tier4 input.chk { accent-color: var(--inter); }
   .tierwhy { color: var(--dim); font-size: .92rem; margin-bottom: 1.1rem; }
   .card {
     background: var(--surface); border: 1px solid var(--line);
@@ -75,7 +76,7 @@
 
 <header>
   <h1>Latent Math Brush-Up</h1>
-  <div class="sub">The algebra behind pilot0's latent geometry — shift vectors, probes, gates, and the differentiable-metric endgame. Video-first: every topic leads with its best animated explainer. Links verified 2026-08-21.</div>
+  <div class="sub">The algebra behind pilot0's latent geometry — shift vectors, probes, gates, and the differentiable-metric endgame. Video-first: every topic leads with its best animated explainer. Links verified 2026-08-21 (math) · 2026-08-22 (perception).</div>
   <div class="progress">
     <div class="ptext" id="ptext">0 / 0 done</div>
     <div class="pbar"><div id="pfill"></div></div>
@@ -262,6 +263,73 @@
       <span class="why">The canonical demo of cluster sizes and distances meaning nothing in t-SNE. Play with every widget.</span></li>
     <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=Chng7-nfDOo">"Nonlinear manifold learning with t-SNE and UMAP"</a><span class="len">~25 min</span>
       <span class="why">Side-by-side local-vs-global preservation — the exact caveat for the persistence test.</span></li>
+  </ul>
+</div>
+</section>
+
+<section class="tier4">
+<h2><span class="tierdot"></span>Perception track — the cognitive science layer</h2>
+<div class="tierwhy">Why a listening metric is possible at all: perception is inference over a learned prior. Full explainer with the thesis mapping: <span style="font-family:var(--mono)">PERCEPTION_LAB.html</span>. This track is the play/watch/read list.</div>
+
+<div class="card">
+  <h3>Play — illusions where the prior writes the percept</h3>
+  <div class="hook">Six demos, each isolating one mechanism your metric borrows. Do these before the papers — they make everything else obvious. → <code>PERCEPTION_LAB.html</code> Depth 1</div>
+  <ul class="res">
+    <li><span class="badge b-inter">interactive</span><a href="https://faculty.college.emory.edu/sites/wyttenbach/psycog/lang/phon/index.html">Emory — categorical perception /ba/–/pa/ experiment</a><span class="len">~15 min</span>
+      <span class="why">Run the VOT sweep on yourself; feel the category cliff RVQ codebooks reproduce.</span></li>
+    <li><span class="badge b-inter">interactive</span><a href="https://pc.cogs.indiana.edu/auditoryambiguity/">Indiana U — Green Needle/Brainstorm + Yanny/Laurel player</a><span class="len">~15 min</span>
+      <span class="why">Attention selects the prior, the prior writes the percept — routing, live in your own head.</span></li>
+    <li><span class="badge b-inter">interactive</span><a href="https://www.nytimes.com/interactive/2018/05/16/upshot/audio-clip-yanny-laurel-debate.html">NYT — Yanny/Laurel frequency slider</a><span class="len">~10 min</span>
+      <span class="why">Sweep the filter and watch your percept flip. (May paywall — the IU player covers it.)</span></li>
+    <li><span class="badge b-inter">interactive</span><a href="https://condor.depaul.edu/dallbrit/extra/psy404/phonemic-restoration-demonstration.html">DePaul — phonemic restoration demo</a><span class="len">~10 min</span>
+      <span class="why">Hear a phoneme that was physically deleted — prediction presented as sensation.</span></li>
+    <li><span class="badge b-inter">interactive</span><a href="http://www.lifesci.sussex.ac.uk/home/Chris_Darwin/SWS/">Chris Darwin — sine-wave speech</a><span class="len">~10 min</span>
+      <span class="why">Whistles → speech, permanently, after one exposure. A prior installed while you watch. (Fallback: users.sussex.ac.uk/~cjd)</span></li>
+    <li><span class="badge b-inter">interactive</span><a href="https://deutsch.ucsd.edu/psychology/pages.php?i=212">Deutsch — speech-to-song illusion</a><span class="len">~10 min</span>
+      <span class="why">Repetition flips speech into melody; zero signal change. (Accept the cert warning.)</span></li>
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=ypd5txtGdGw">BBC Horizon — McGurk effect</a><span class="len">~5 min</span>
+      <span class="why">Lips overwrite ears; knowing the trick doesn't break it. Percepts are inferences.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>The science — how the prior gets built</h3>
+  <div class="hook">The developmental evidence that training prunes the basis: universal infant → specialized adult = random init → converged codec. → the Monet principle, with data</div>
+  <ul class="res">
+    <li><span class="badge b-text">text</span><a href="https://www.pnas.org/doi/10.1073/pnas.97.22.11850">Kuhl — perceptual magnet &amp; language acquisition (PNAS)</a><span class="len">skim figures, ~30 min</span>
+      <span class="why">Native prototypes warp perceptual space; why adult Japanese listeners can't hear /r/–/l/.</span></li>
+    <li><span class="badge b-text">text</span><a href="https://www.pnas.org/doi/10.1073/pnas.0904134106">Werker — perceptual narrowing in infancy (PNAS)</a><span class="len">skim figures, ~30 min</span>
+      <span class="why">6→12 months: non-native contrasts collapse while native ones sharpen. Specialization has a price.</span></li>
+    <li><span class="badge b-text">text</span><a href="https://open.lib.umn.edu/sensationandperception/chapter/categorical-perception/">UMN open textbook — categorical perception</a><span class="len">~20 min</span>
+      <span class="why">Why the VOT boundary is a cliff, not a slope — the accessible theory backstop.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>The theory — perception as controlled hallucination</h3>
+  <div class="hook">Predictive coding: the brain predicts downward, only the error flows up. One framework explains every demo above. → anchor D's architecture</div>
+  <ul class="res">
+    <li><span class="badge b-video">video</span><a href="https://www.ted.com/talks/anil_seth_your_brain_hallucinates_your_conscious_reality">Anil Seth — your brain hallucinates your conscious reality (TED)</a><span class="len">~17 min</span>
+      <span class="why">The canonical intro; "controlled hallucination" coined on stage.</span></li>
+    <li><span class="badge b-video">video</span><a href="https://ed.ted.com/lessons/your-brain-hallucinates-your-conscious-reality-anil-seth">TED-Ed — animated version with comprehension checks</a><span class="len">~5 min</span>
+      <span class="why">The bite-size animated recap; watch after the talk to lock it in.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>The machinery — routing, accumulation, metacognition</h3>
+  <div class="hook">The three brain tricks codecs lack, in ML vocabulary — one per thesis anchor B/D/C. → <code>docs/plans/2026-08-22-polyglot-listener.idea.md</code></div>
+  <ul class="res">
+    <li><span class="badge b-text">text</span><a href="https://newsletter.maartengrootendorst.com/p/a-visual-guide-to-mixture-of-experts">Grootendorst — A Visual Guide to Mixture of Experts</a><span class="len">~30 min, 50+ diagrams</span>
+      <span class="why">Gating networks + sparse experts — the polyglot's language switch, engineered (anchor B).</span></li>
+    <li><span class="badge b-text">text</span><a href="https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2022.1039172/full">Frontiers — drift-diffusion tutorial</a><span class="len">~25 min</span>
+      <span class="why">"Let me hear more" as a random walk to a decision boundary (anchor D).</span></li>
+    <li><span class="badge b-inter">interactive</span><a href="https://link.springer.com/article/10.1007/s00426-018-1112-6">Interactive diffusion-model visualizer (Springer)</a><span class="len">~15 min</span>
+      <span class="why">Drag drift/boundary/noise, watch reaction-time distributions shift live.</span></li>
+    <li><span class="badge b-video">video</span><a href="https://www.youtube.com/watch?v=qYtklihV7KA">What Is Metacognition — 10-minute intro</a><span class="len">~10 min</span>
+      <span class="why">Thinking about your own thinking — the unfamiliarity channel's namesake (anchor C).</span></li>
+    <li><span class="badge b-video">video</span><a href="https://www.veritasium.com/videos/2025/12/25/why-people-are-so-confident-when-theyre-wrong">Veritasium — why people are so confident when they're wrong</a><span class="len">~20 min</span>
+      <span class="why">Human metacognition is miscalibrated too — the calibration lesson for any confidence output.</span></li>
   </ul>
 </div>
 </section>
