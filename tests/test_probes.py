@@ -51,7 +51,8 @@ def _fabricate(n_sources: int = 12, noise: float = 0.3, seed: int = 0) -> ProbeD
 
     return ProbeData(
         X=np.asarray(X), family=np.asarray(fam), severity=np.asarray(sev, int),
-        split=np.asarray(split), group=np.asarray(group), encoder="fab", variant="v",
+        split=np.asarray(split), group=np.asarray(group), source=np.asarray(group),
+        encoder="fab", variant="v",
     )
 
 

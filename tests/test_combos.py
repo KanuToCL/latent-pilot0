@@ -51,7 +51,8 @@ def _fab(n_sources: int = 6, additive: bool = True, noise: float = 0.04, seed: i
 
     probe = ProbeData(
         X=np.asarray(pX), family=np.asarray(pfam), severity=np.asarray(psev, int),
-        split=np.asarray(psplit), group=np.asarray(pgroup), encoder="fab", variant="v",
+        split=np.asarray(psplit), group=np.asarray(pgroup), source=np.asarray(pgroup),
+        encoder="fab", variant="v",
     )
     combo = ComboData(
         X=np.asarray(cX), pair=np.asarray(cpair), leg_a=np.asarray(cla), leg_b=np.asarray(clb),

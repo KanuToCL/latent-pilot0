@@ -38,6 +38,9 @@ class ProbeData:
     severity: np.ndarray  # [N] int 0..5 (0 = clean)
     split: np.ndarray  # [N] "train"/"test"
     group: np.ndarray  # [N] speaker/track id
+    # [N] clip token. A group holds several clips, so intersecting by group does NOT
+    # pair rows: RQ2 additivity needs the same CLIP in all four roles (S6/D3).
+    source: np.ndarray
     encoder: str
     variant: str
 
@@ -53,7 +56,8 @@ class ProbeData:
         keep = np.array([(f, int(s)) in conditions for f, s in zip(self.family, self.severity)])
         return ProbeData(
             X=self.X[keep], family=self.family[keep], severity=self.severity[keep],
-            split=self.split[keep], group=self.group[keep], encoder=self.encoder, variant=self.variant,
+            split=self.split[keep], group=self.group[keep], source=self.source[keep],
+            encoder=self.encoder, variant=self.variant,
         )
 
     def n_test_groups(self) -> int:
@@ -63,19 +67,21 @@ class ProbeData:
 def build_probe_data(
     manifest: dict, name: str, variant: str, cache_dir, *, ceiling_dbfs: float = CEILING_DBFS
 ) -> ProbeData:
-    feats, fam, sev, split, group = [], [], [], [], []
+    feats, fam, sev, split, group, source = [], [], [], [], [], []
     for r, lat in iter_latents(manifest, name, variant, cache_dir, ceiling_dbfs=ceiling_dbfs):
         feats.append(pool_mean_std(lat.frames))
         fam.append(r["family"])
         sev.append(r["severity"])
         split.append(r["split"])
         group.append(r["group"])
+        source.append(r["source"])
     return ProbeData(
         X=np.asarray(feats, dtype=np.float64),
         family=np.asarray(fam),
         severity=np.asarray(sev, dtype=int),
         split=np.asarray(split),
         group=np.asarray(group),
+        source=np.asarray(source),
         encoder=name,
         variant=variant,
     )

@@ -72,7 +72,20 @@ def additivity_dict(res) -> dict:
                 "severity": pa.severity,
                 "cosine": estimate_dict(pa.cosine),  # RAW pooled-latent basis (primary)
                 "cosine_std": estimate_dict(pa.cosine_std),  # standardised basis
+                # S6 dominance / recovery. cosine alone is not identifiable: check
+                # cos_legs before reading alpha/beta, and cos_to_b before believing
+                # a high cosine means both legs are present.
+                "cos_to_a": pa.cos_to_a,
+                "cos_to_b": pa.cos_to_b,
+                "cos_legs": pa.cos_legs,
+                "norm_ratio": pa.norm_ratio,
+                "r": pa.r,
+                "rel_residual": pa.rel_residual,  # DERIVED from cosine and r (F23)
+                "alpha": estimate_dict(pa.alpha),
+                "beta": estimate_dict(pa.beta),
                 "n_groups": pa.n_groups,
+                "n_sources": pa.n_sources,
+                "rows_identical": pa.rows_identical,
             }
             for _cell, pa in sorted(res.by_cell.items())
         ],

@@ -77,11 +77,20 @@ def _gate2_json(report) -> dict:
 
 
 def _additivity_json(combo_report) -> dict:
+    """`raw`/`std` are this writer's names for `cosine`/`cosine_std` — F3 reads them,
+    so the alias stays. Every S6 field below is named exactly as in
+    tools/job_c_run.py::additivity_dict (AM2); a test asserts the two key sets match
+    modulo that documented alias."""
     return {
         key: {"mean_cosine": add.mean_cosine(), "by_cell": {
             f"{pa.pair}@{pa.severity}": {"pair": pa.pair, "severity": pa.severity,
                                          "raw": _est(pa.cosine), "std": _est(pa.cosine_std),
-                                         "n_groups": pa.n_groups}
+                                         "cos_to_a": pa.cos_to_a, "cos_to_b": pa.cos_to_b,
+                                         "cos_legs": pa.cos_legs, "norm_ratio": pa.norm_ratio,
+                                         "r": pa.r, "rel_residual": pa.rel_residual,
+                                         "alpha": _est(pa.alpha), "beta": _est(pa.beta),
+                                         "n_groups": pa.n_groups, "n_sources": pa.n_sources,
+                                         "rows_identical": pa.rows_identical}
             for (_, _), pa in add.by_cell.items()}}
         for key, add in combo_report.additivity.items()
     }

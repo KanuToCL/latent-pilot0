@@ -96,7 +96,11 @@ def _additivity():
     for pair in ("noise+clip", "hiss+bandlimit", "hum+mp3"):
         for sev in (2, 3, 4):
             cells[f"{pair}@{sev}"] = {"pair": pair, "severity": sev, "raw": _triple(0.99),
-                                      "std": _triple(0.98), "n_groups": 5}
+                                      "std": _triple(0.98), "n_groups": 5, "n_sources": 25,
+                                      "rows_identical": True, "cos_to_a": 0.7, "cos_to_b": 0.7,
+                                      "cos_legs": 0.05, "norm_ratio": 1.1, "r": 0.98,
+                                      "rel_residual": 0.03, "alpha": _triple(0.95),
+                                      "beta": _triple(0.9)}
     return {k: {"mean_cosine": 0.99, "by_cell": cells} for k in KEYS}
 
 
@@ -186,8 +190,11 @@ def _gate2_report(g2b: bool) -> Gate2Report:
 def _combo_report() -> ComboReport:
     add, trans = {}, {}
     for k in KEYS:
-        cells = {(pair, sev): PairAdditivity(pair, sev, _est(0.99), _est(0.98), 5)
-                 for pair in ("noise+clip", "hiss+bandlimit", "hum+mp3") for sev in (2, 3, 4)}
+        cells = {(pair, sev): PairAdditivity(
+            pair, sev, _est(0.99), _est(0.98), cos_to_a=0.7, cos_to_b=0.7, cos_legs=0.05,
+            norm_ratio=1.1, r=0.98, rel_residual=0.03, alpha=_est(0.95), beta=_est(0.9),
+            n_groups=5, n_sources=25, rows_identical=True)
+            for pair in ("noise+clip", "hiss+bandlimit", "hum+mp3") for sev in (2, 3, 4)}
         add[k] = AdditivityResult(by_cell=cells)
         trans[k] = TransferResult(by_pair={
             "noise+clip": PairTransfer("noise+clip", "noise", "clip", 8, {"noise": 0.75, "clip": 0.25}, 1.0)})
