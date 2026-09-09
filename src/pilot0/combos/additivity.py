@@ -91,6 +91,9 @@ class PairAdditivity:
     n_groups: int  # speaker groups in the legacy intersection (unchanged meaning)
     n_sources: int  # clips carrying all four roles — the population actually used
     rows_identical: bool  # source pairing selected exactly the legacy rows (D3)
+    reason: str | None = None  # why the cell is unevaluable; None when it has numbers.
+    # "no_common_source" (no clip carries all four roles) | "duplicate_rows" (a role
+    # holds more than one row for some source, so the four cannot be paired)
 
 
 @dataclass(frozen=True)
@@ -196,10 +199,13 @@ def _centroid_ratio(da, db, dab) -> float:
     return float(np.linalg.norm(dab.mean(axis=0)) / sum_norm)
 
 
-def _empty_cell(label: str, sev: int, n_groups: int, n_sources: int, identical: bool) -> PairAdditivity:
+def _empty_cell(label: str, sev: int, n_groups: int, n_sources: int, identical: bool,
+                reason: str) -> PairAdditivity:
+    """An unevaluable cell: every statistic nan, and a machine-readable `reason` so a
+    reader can tell "nothing to measure here" from "measured and it was nan"."""
     nan = float("nan")
     return PairAdditivity(label, sev, _NAN, _NAN, nan, nan, nan, nan, nan, nan, _NAN, _NAN,
-                          n_groups, n_sources, identical)
+                          n_groups, n_sources, identical, reason)
 
 
 def additivity(probe_data: ProbeData, combo_data: ComboData, *, n_boot: int = N_BOOTSTRAP) -> AdditivityResult:
@@ -224,7 +230,8 @@ def additivity(probe_data: ProbeData, combo_data: ComboData, *, n_boot: int = N_
             common = (set(probe_data.source[a_m]) & set(probe_data.source[b_m])
                       & set(combo_data.source[ab_m]) & set(probe_data.source[clean_m]))
             if not common:  # no clip carries all four roles → not evaluable
-                by_cell[(label, sev)] = _empty_cell(label, sev, len(g_common), 0, False)
+                by_cell[(label, sev)] = _empty_cell(label, sev, len(g_common), 0, False,
+                                                    "no_common_source")
                 continue
 
             sel_p = np.isin(probe_data.source, list(common))
@@ -233,12 +240,17 @@ def additivity(probe_data: ProbeData, combo_data: ComboData, *, n_boot: int = N_
             # The per-source displacements align the four roles by sorting each on its
             # source token, which is only valid at exactly one row per source per role.
             # A duplicated cache cell would otherwise mispair clips silently.
+            #
+            # `common` is the four-way source intersection and each mask is
+            # `role & isin(source, common)`, so a count can only EXCEED len(common):
+            # this is a duplicate test, never a missing-row test. Refusing the one cell
+            # is right where raising was not - an 18-candidate batch costing 140 minutes
+            # must not abort on one bad cell when every other cell is still answerable.
             counts = [int(m.sum()) for m in masks]
             if any(c != len(common) for c in counts):
-                raise ValueError(
-                    f"{label}@{sev}: {counts} rows across (clean, a, b, ab) for "
-                    f"{len(common)} paired sources — a role has duplicate or missing cells"
-                )
+                by_cell[(label, sev)] = _empty_cell(label, sev, len(g_common), len(common),
+                                                    False, "duplicate_rows")
+                continue
             g_p, g_c = np.isin(probe_data.group, list(g_common)), np.isin(combo_data.group, list(g_common))
             legacy = (clean_m & g_p, a_m & g_p, b_m & g_p, ab_m & g_c)
             identical = all(bool(np.array_equal(m, l)) for m, l in zip(masks, legacy))

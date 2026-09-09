@@ -121,12 +121,29 @@ def test_scaled_superposition_reports_r_alpha_beta_and_a_derived_residual():
     assert c.cos_legs == pytest.approx(0.0, abs=1e-12)
 
 
-def test_rel_residual_is_exactly_the_identity_in_cosine_and_r():
-    """F23: rel_residual² = 1 + r² − 2r·cosine. It is derived, not measured — it
-    carries no information beyond the two numbers it is built from."""
-    c = _cell([3.0, 0.0], [0.0, 3.0], [0.3, 0.9])
-    expect = np.sqrt(1.0 + c.r ** 2 - 2.0 * c.r * c.cosine.point)
-    assert c.rel_residual == pytest.approx(expect, abs=1e-14)
+def test_rel_residual_is_the_relative_distance_from_the_sum_of_the_legs():
+    """F23: rel_residual = ‖Δ̄ab − (Δ̄a + Δ̄b)‖ / ‖Δ̄a + Δ̄b‖.
+
+    Measured here from the fixture's own role centroids. Restating the implementation's
+    identity (√(1 + r² − 2r·cosine)) would only prove numpy can evaluate the same
+    expression twice; this reconstructs the geometry the identity is supposed to encode,
+    so an error in EITHER r or cosine shows up.
+
+    Δ̄a = (3,0), Δ̄b = (0,3), Δ̄ab = (0.3,0.9)  (the per-source identity vectors cancel
+    in every centroid), so Δ̄ab − (Δ̄a+Δ̄b) = (−2.7,−2.1) and the ratio is
+    √(2.7² + 2.1²) / √(3² + 3²) = √(11.70/18) = √0.65 ≈ 0.8062257748.
+    """
+    probe, combo = _fab([3.0, 0.0], [0.0, 3.0], [0.3, 0.9])
+    c = additivity(probe, combo, n_boot=N_BOOT).by_cell[(PAIR, SEV)]
+
+    clean = probe.X[probe.family == "clean"].mean(axis=0)
+    legs = ((probe.X[probe.family == LEG_A].mean(axis=0) - clean)
+            + (probe.X[probe.family == LEG_B].mean(axis=0) - clean))
+    d_ab = combo.X.mean(axis=0) - clean
+    geometric = float(np.linalg.norm(d_ab - legs) / np.linalg.norm(legs))
+
+    assert geometric == pytest.approx(np.sqrt(0.65), abs=1e-12)  # the arithmetic above
+    assert c.rel_residual == pytest.approx(geometric, abs=1e-12)
 
 
 # --- source pairing -----------------------------------------------------------
@@ -166,6 +183,51 @@ def test_uncovered_cell_reports_zero_sources_without_crashing():
     c = additivity(probe, combo, n_boot=N_BOOT).by_cell[(PAIR, SEV)]
     assert c.n_sources == 0 and c.n_groups == 0
     assert np.isnan(c.cosine.point) and np.isnan(c.alpha.point) and np.isnan(c.r)
+    assert c.reason == "no_common_source"  # nothing to measure, not "measured as nan"
+
+
+def test_a_duplicated_role_row_makes_the_cell_unevaluable_not_the_batch_fatal():
+    """Sorting the four roles on their source tokens only pairs them at one row per
+    source per role. A second `noise@3` row for one clip would mispair every clip after
+    it, so the cell must be refused — but as ONE unevaluable cell. Raising here would
+    abort an 18-candidate, 140-minute batch over a single bad cell while every other
+    cell is still answerable."""
+    probe, combo = _fab([3.0, 0.0], [0.0, 3.0], [3.0, 3.0], n_sources=4)
+    dup = np.flatnonzero((probe.family == LEG_A) & (probe.severity == SEV))[0]
+    probe = ProbeData(**{**probe.__dict__,
+                         **{f: np.concatenate([getattr(probe, f), getattr(probe, f)[dup:dup + 1]])
+                            for f in ("family", "severity", "split", "group", "source")},
+                         "X": np.vstack([probe.X, probe.X[dup]])})
+
+    res = additivity(probe, combo, n_boot=N_BOOT)  # must NOT raise
+    c = res.by_cell[(PAIR, SEV)]
+    assert c.reason == "duplicate_rows"
+    assert np.isnan(c.cosine.point) and np.isnan(c.alpha.point)
+    assert c.n_sources == 4  # the pairing population is still reported
+    assert not c.rows_identical
+
+
+def test_an_evaluable_cell_carries_no_reason():
+    c = _cell([3.0, 0.0], [0.0, 3.0], [3.0, 3.0])
+    assert c.reason is None
+    assert np.isfinite(c.cosine.point)
+
+
+def test_n_sources_is_not_the_evaluability_test():
+    """A duplicate_rows cell reports the sources it paired and still carries no
+    statistics, so `if c.n_sources` counts it as evaluable — which is what the runner's
+    progress line used to do. `reason is None` is the test; this pins the difference so
+    a future reader does not reintroduce the truthiness check."""
+    probe, combo = _fab([3.0, 0.0], [0.0, 3.0], [3.0, 3.0], n_sources=4)
+    dup = np.flatnonzero((probe.family == LEG_A) & (probe.severity == SEV))[0]
+    probe = ProbeData(**{**probe.__dict__,
+                         **{f: np.concatenate([getattr(probe, f), getattr(probe, f)[dup:dup + 1]])
+                            for f in ("family", "severity", "split", "group", "source")},
+                         "X": np.vstack([probe.X, probe.X[dup]])})
+
+    c = additivity(probe, combo, n_boot=N_BOOT).by_cell[(PAIR, SEV)]
+    assert c.n_sources > 0  # truthy ...
+    assert c.reason is not None and np.isnan(c.cosine.point)  # ... but nothing to read
 
 
 # --- both serializers (AM2) ----------------------------------------------------
@@ -187,7 +249,8 @@ def test_both_serializers_emit_the_same_field_set():
 
 
 @pytest.mark.parametrize("field", ["cos_to_a", "cos_to_b", "cos_legs", "norm_ratio", "r",
-                                   "rel_residual", "alpha", "beta", "n_sources", "rows_identical"])
+                                   "rel_residual", "alpha", "beta", "n_sources",
+                                   "rows_identical", "reason"])
 def test_every_new_field_reaches_both_serializers(field):
     from pilot0.combos.run import ComboReport
 
@@ -196,3 +259,27 @@ def test_every_new_field_reaches_both_serializers(field):
     lib_cell = next(iter(_additivity_json(ComboReport(additivity={"k/v": res}, transfer={}))
                          ["k/v"]["by_cell"].values()))
     assert field in tool_cell and field in lib_cell
+
+
+# --- AM8: a report that names a latent must say what the latent IS ------------------
+
+
+def test_the_per_candidate_block_says_what_the_latent_is():
+    """`dac44k:z` and `encodec24k:z` share a variant letter and mean opposite things.
+    Reading the first as "pre-quant" is exactly the S2 error, so combos_real.json's
+    per-candidate block carries `semantics` (AM8) - asserted on the block main() writes,
+    not on a re-implementation of it."""
+    from pilot0.combos.run import ComboReport
+    from pilot0.combos.transfer import TransferResult
+    from pilot0.seam.registry import variant_semantics
+    from job_c_run import candidate_block
+
+    res = additivity(*_fab([3.0, 0.0], [0.0, 3.0], [3.0, 3.0]), n_boot=N_BOOT)
+    rep = ComboReport(additivity={"dac44k/z": res}, transfer={"dac44k/z": TransferResult(by_pair={})})
+
+    block = candidate_block("dac44k", "z", rep)
+    assert set(block) == {"key", "name", "variant", "semantics", "additivity", "transfer"}
+    assert block["key"] == "dac44k:z"
+    assert block["semantics"] == variant_semantics("dac44k", "z")
+    assert "quantized" in block["semantics"]  # the S2 correction: NOT pre-quantization
+    assert block["semantics"] != variant_semantics("encodec24k", "z")  # same letter, other meaning

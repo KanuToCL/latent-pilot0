@@ -90,7 +90,8 @@ def _additivity_json(combo_report) -> dict:
                                          "r": pa.r, "rel_residual": pa.rel_residual,
                                          "alpha": _est(pa.alpha), "beta": _est(pa.beta),
                                          "n_groups": pa.n_groups, "n_sources": pa.n_sources,
-                                         "rows_identical": pa.rows_identical}
+                                         "rows_identical": pa.rows_identical,
+                                         "reason": pa.reason}
             for (_, _), pa in add.by_cell.items()}}
         for key, add in combo_report.additivity.items()
     }

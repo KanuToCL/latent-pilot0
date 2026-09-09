@@ -15,6 +15,16 @@
 # @property AND method results, and it would stringify AdditivityResult.by_cell's
 # TUPLE keys into "('noise+clip', 2)". Every result field below is written out by
 # hand instead - see additivity_dict / transfer_dict.
+#
+# Section map (file order):
+#   key_of(name, variant)              - "name:variant" report key
+#   write_atomic(path, payload)        - tmp + os.replace
+#   estimate_dict(e)                   - Estimate -> {point, lo, hi}
+#   additivity_dict(res)               - AdditivityResult -> records (by_cell as a LIST)
+#   transfer_dict(res)                 - TransferResult -> records
+#   candidate_block(name, variant, rep) - the per-candidate record, semantics included
+#   print_summary(rep)                 - the per-candidate table
+#   main()                             - encode pass -> analyze -> reports/combos_real.json
 import dataclasses
 import json
 import os
@@ -86,6 +96,7 @@ def additivity_dict(res) -> dict:
                 "n_groups": pa.n_groups,
                 "n_sources": pa.n_sources,
                 "rows_identical": pa.rows_identical,
+                "reason": pa.reason,  # null when the cell carries numbers
             }
             for _cell, pa in sorted(res.by_cell.items())
         ],
@@ -109,6 +120,26 @@ def transfer_dict(res) -> dict:
             }
             for _label, pt in sorted(res.by_pair.items())
         ]
+    }
+
+
+def candidate_block(name: str, variant: str, rep) -> dict:
+    """One candidate's record in combos_real.json.
+
+    `semantics` is not decoration (S2/D1/AM8): `dac44k:z` and `encodec24k:z` share a
+    variant letter and mean opposite things - quantized vs continuous pre-quant - and
+    the Gate-1 reading of DAC was wrong for exactly that reason. A report that names a
+    latent has to say what the latent IS. Extracted from main() so the block is
+    reachable from a test without a corpus pass.
+    """
+    lib_key = f"{name}/{variant}"  # analyze_combos' key -> this report's key_of()
+    return {
+        "key": key_of(name, variant),
+        "name": name,
+        "variant": variant,
+        "semantics": variant_semantics(name, variant),  # what this latent IS (S2/D1/AM8)
+        "additivity": additivity_dict(rep.additivity[lib_key]),
+        "transfer": transfer_dict(rep.transfer[lib_key]),
     }
 
 
@@ -185,17 +216,8 @@ def main() -> None:
     rep = analyze_combos(man, ALL_CANDIDATES, CACHE)
     print(f"\nanalysis done in {(time.time() - t1) / 60:.1f} min", flush=True)
 
-    by_candidate = {}
-    for name, variant in ALL_CANDIDATES:
-        lib_key = f"{name}/{variant}"  # analyze_combos' key -> this report's key_of()
-        by_candidate[key_of(name, variant)] = {
-            "key": key_of(name, variant),
-            "name": name,
-            "variant": variant,
-            "semantics": variant_semantics(name, variant),  # what this latent IS (S2/D1/AM8)
-            "additivity": additivity_dict(rep.additivity[lib_key]),
-            "transfer": transfer_dict(rep.transfer[lib_key]),
-        }
+    by_candidate = {key_of(name, variant): candidate_block(name, variant, rep)
+                    for name, variant in ALL_CANDIDATES}
 
     payload = to_jsonable({
         "candidates": [list(c) for c in ALL_CANDIDATES],

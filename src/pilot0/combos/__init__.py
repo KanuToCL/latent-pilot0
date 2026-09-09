@@ -6,6 +6,8 @@ from .additivity import AdditivityResult, PairAdditivity, additivity
 from .dataset import ComboData, build_combo_data
 from .encode import encode_combos
 from .grid import COMBO_PAIRS, COMBO_SEVERITIES, combo_label
+from .legacy_check import LegacyCheck, check_legacy
+from .row_scan import DuplicateRow, RowScan, scan_duplicate_rows
 from .run import ComboReport, analyze_combos
 from .transfer import PairTransfer, TransferResult, transfer_to_combos
 
@@ -24,4 +26,10 @@ __all__ = [
     "combo_label",
     "COMBO_PAIRS",
     "COMBO_SEVERITIES",
+    # the two pure checks the S6 reanalysis stands on
+    "check_legacy",
+    "LegacyCheck",
+    "scan_duplicate_rows",
+    "RowScan",
+    "DuplicateRow",
 ]

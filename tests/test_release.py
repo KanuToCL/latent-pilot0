@@ -26,7 +26,7 @@ from pilot0.quality.run import Gate2Report
 from pilot0.quality.scores import FakeScores
 from pilot0.provenance import BANNER, is_fake, provenance
 from pilot0.release.artifacts import (
-    CANDIDATES, _additivity_json, _gate2_json, _ood_json,
+    CANDIDATES, _additivity_json, _gate2_json, _ood_json, _provenance,
     build_demo_corpus, write_artifacts,
 )
 import matplotlib.pyplot as plt  # figures.py already selected the Agg backend on import
@@ -238,6 +238,24 @@ def test_ood_serializer_renders_f6(tmp_path):
 
 def test_banner_marks_outputs_fake():
     assert "FAKE" in BANNER and "NOT results" in BANNER
+
+
+def test_release_provenance_says_what_each_latent_is():
+    """AM8: this writer's candidate metadata is the provenance block, so the semantics
+    ride there. Two candidates spelled `z` mean opposite things (S2/D1) — a release that
+    lists them without saying which is which reproduces the Gate-1 misreading."""
+    prov = _provenance([("dac44k", "z"), ("encodec24k", "z")], n_sources=6, sr=48000)
+    sem = prov["candidate_semantics"]
+    assert set(sem) == {"dac44k:z", "encodec24k:z"}  # keyed with ':' like every report
+    assert "quantized" in sem["dac44k:z"]
+    assert "pre-quantization" in sem["encodec24k:z"]
+    assert sem["dac44k:z"] != sem["encodec24k:z"]  # the whole point of carrying it
+
+
+def test_release_provenance_covers_every_shipped_candidate():
+    prov = _provenance(CANDIDATES, n_sources=6, sr=48000)
+    assert set(prov["candidate_semantics"]) == {f"{n}:{v}" for n, v in CANDIDATES}
+    assert all(s for s in prov["candidate_semantics"].values())  # no blank strings
 
 
 def test_provenance_fake_flag_is_derived_not_hardcoded():

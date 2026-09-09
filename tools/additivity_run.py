@@ -13,19 +13,44 @@
 # (`rows_identical`) the raw cosine must reproduce reports/combos_real.json
 # bit-for-bit, and the run FAILS if no cell is identical - that would mean the
 # reanalysis had silently changed the ground it stands on.
+#
+# `--scan-duplicates` is a separate, seconds-long mode that never loads a latent: it
+# asks only whether additivity()'s per-source row-count guard could fire anywhere in
+# the bank (pilot0.combos.row_scan states why a listing is sufficient evidence).
+#
+# Section map (file order):
+#   key_of(name, variant)           - "name:variant" report key
+#   write_atomic(path, payload)     - tmp + os.replace
+#   estimate_dict(e)                - Estimate -> {point, lo, hi}
+#   cell_dict(pa)                   - PairAdditivity -> report record
+#   legacy_cells(path)              - combos_real.json -> check_legacy's input shape
+#   guard_or_abort(results, path)   - run the D3 guard, SystemExit on failure
+#   probe_rows(manifest, sr)        - (family, severity, source) per probe row
+#   combo_rows(manifest, name, variant) - (pair, severity, source) per CACHED combo cell
+#   scan_duplicates()               - --scan-duplicates: print the scan, non-zero on a hit
+#   _f(x, width)                    - table cell formatter
+#   print_summary(results)          - the pair x severity x candidate table
+#   main()                          - full reanalysis -> reports/additivity_real.json
+import argparse
 import json
 import os
 import time
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
 
 from job_b_run import CANDIDATES
-from pilot0.combos.grid import COMBO_PAIRS, COMBO_SEVERITIES, combo_label
+from pilot0.combos.grid import COMBO_PAIRS, COMBO_SEVERITIES, combo_label, combo_severities
+from pilot0.combos.legacy_check import check_legacy
+from pilot0.combos.row_scan import scan_duplicate_rows
 from pilot0.combos.run import analyze_additivity
+from pilot0.corpus.manifest import renderable_rows
+from pilot0.encode.cache import cache_version, cell_id, is_cached
+from pilot0.encode.headroom import CEILING_DBFS
 from pilot0.probes.run import FLOOR
 from pilot0.provenance import is_fake, provenance
-from pilot0.seam.registry import candidate_semantics, variant_semantics
+from pilot0.seam.registry import candidate_semantics, make_encoder, variant_semantics
 from pilot0.serialize import to_jsonable
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -69,50 +94,76 @@ def cell_dict(pa) -> dict:
         "norm_ratio": pa.norm_ratio, "r": pa.r, "rel_residual": pa.rel_residual,
         "alpha": estimate_dict(pa.alpha), "beta": estimate_dict(pa.beta),
         "n_groups": pa.n_groups, "n_sources": pa.n_sources, "rows_identical": pa.rows_identical,
+        "reason": pa.reason,  # null when the cell carries numbers
     }
 
 
-def _same(new: float, old) -> bool:
-    """Bit-identical, with JSON null (nan under to_jsonable) treated as nan."""
-    if old is None or (isinstance(old, float) and np.isnan(old)):
-        return bool(np.isnan(new))
-    return new == old
-
-
-def check_legacy(results: dict, legacy_path: Path) -> dict:
-    """D3: where source pairing selected exactly the legacy rows, the raw cosine must
-    reproduce the legacy report bit-for-bit. Fails loud on a mismatch, and fails loud
-    if NO cell is identical - an all-different reanalysis proves nothing."""
+def legacy_cells(legacy_path: Path) -> dict:
+    """combos_real.json -> `{candidate key: {(pair, severity): cell}}`, the shape
+    `pilot0.combos.legacy_check.check_legacy` takes. Keys are spelled "name/variant"
+    to match `analyze_additivity`'s result dict, not the report's "name:variant"."""
     if not legacy_path.exists():
         raise SystemExit(f"ABORT: {legacy_path} is missing - the D3 regression guard cannot run")
     legacy = json.loads(legacy_path.read_text(encoding="utf-8"))["by_candidate"]
-    n_identical = n_checked = n_differing = 0
-    mismatches = []
-    for key, res in results.items():
-        name, variant = key.split("/")
-        old_cells = {(c["pair"], c["severity"]): c for c in legacy[key_of(name, variant)]["additivity"]["by_cell"]}
-        for cell, pa in res.by_cell.items():
-            if not pa.rows_identical:
-                n_differing += 1
-                continue
-            n_identical += 1
-            old = old_cells.get(cell)
-            if old is None:
-                mismatches.append(f"{key_of(name, variant)} {cell}: absent from the legacy report")
-                continue
-            n_checked += 1
-            for field, got in (("point", pa.cosine.point), ("lo", pa.cosine.lo), ("hi", pa.cosine.hi)):
-                if not _same(got, old["cosine"][field]):
-                    mismatches.append(f"{key_of(name, variant)} {cell} cosine.{field}: "
-                                      f"{got!r} != {old['cosine'][field]!r}")
-    if n_identical == 0:
-        raise SystemExit("ABORT (D3): no cell has rows_identical - source pairing changed every "
-                         "selection, so nothing anchors this reanalysis to combos_real.json")
-    if mismatches:
-        raise SystemExit("ABORT (D3): legacy cosine not reproduced on identical rows:\n  "
-                         + "\n  ".join(mismatches[:20]))
-    return {"n_cells_identical": n_identical, "n_cells_differing": n_differing,
-            "n_cosines_verified": n_checked, "legacy_report": str(legacy_path.name)}
+    out = {}
+    for name, variant in ALL_CANDIDATES:
+        cells = legacy[key_of(name, variant)]["additivity"]["by_cell"]
+        out[f"{name}/{variant}"] = {(c["pair"], c["severity"]): c for c in cells}
+    return out
+
+
+def guard_or_abort(results: dict, legacy_path: Path) -> dict:
+    """Run the D3 guard and turn a failing verdict into an abort. The classification
+    itself is pure and tested in tests/test_legacy_check.py."""
+    check = check_legacy(results, legacy_cells(legacy_path))
+    if not check.ok:
+        raise SystemExit(f"ABORT (D3): {check.failure}")
+    return check.as_dict(legacy_path.name)
+
+
+# --- --scan-duplicates: is additivity()'s row-count guard reachable at all? ----------
+
+
+def probe_rows(manifest: dict, native_sr: int):
+    """`(family, severity, source)` for every row `build_probe_data` would stack: it
+    appends exactly one per renderable manifest row, so no latent need be opened."""
+    for r in renderable_rows(manifest, native_sr):
+        yield r["family"], int(r["severity"]), r["source"]
+
+
+def combo_rows(manifest: dict, name: str, variant: str, cache_dir: Path = CACHE):
+    """`(pair, severity, source)` for every CACHED combo cell, mirroring
+    `iter_combo_latents`' walk with `is_cached` in place of `load_latent`."""
+    enc = make_encoder(name)
+    cv = cache_version(manifest, CEILING_DBFS)
+    for source in {r["source"] for r in manifest["rows"]}:
+        for a, b in COMBO_PAIRS:
+            label = combo_label(a, b)
+            for sev in combo_severities(a, b, enc.native_sr):
+                if is_cached(cache_dir, name, variant, cell_id(source, label, sev, enc.native_sr), cv):
+                    yield label, sev, source
+
+
+def scan_duplicates() -> int:
+    """Print the per-candidate duplicate scan. Exit code 1 if any cell would trip the
+    guard - i.e. if reports/additivity_real.json's pre-guard numbers are in doubt."""
+    man = json.loads((CORPUS / "manifest.json").read_text(encoding="utf-8"))
+    print(f"manifest: {man['n_sources']} sources, {man['n_rows']} rows   "
+          f"candidates: {len(ALL_CANDIDATES)}   (no latents opened)", flush=True)
+    total = 0
+    for name, variant in ALL_CANDIDATES:
+        sr = make_encoder(name).native_sr
+        scan = scan_duplicate_rows(probe_rows(man, sr), combo_rows(man, name, variant))
+        total += len(scan.duplicates)
+        print(f"  {key_of(name, variant):22s} {sr // 1000:>3d} kHz  "
+              f"{scan.n_probe_rows:6d} probe + {scan.n_combo_rows:5d} combo rows  "
+              f"{scan.n_keys:6d} role/source keys  duplicates: {len(scan.duplicates)}", flush=True)
+        for dup in scan.duplicates[:10]:
+            print(f"      {dup}")
+    print(f"\ntotal duplicate role/source keys across all candidates: {total}")
+    print("=> additivity()'s duplicate-row guard is INERT on this bank" if total == 0
+          else "=> the guard WOULD fire: cells above are unevaluable")
+    return 1 if total else 0
 
 
 def _f(x, width: int = 7) -> str:
@@ -147,10 +198,13 @@ def print_summary(results: dict) -> None:
             if m is None:
                 print(f"{head} {label:15s} {cos} | (no cell at severity {MID})")
             else:
+                # An unevaluable cell prints its reason rather than a row of "n/a": a
+                # reader must be able to tell "nothing to measure" from "measured nan".
+                why = "" if m.reason is None else f"  <- {m.reason}"
                 print(f"{head} {label:15s} {cos} | {_f(m.cos_to_a)} {_f(m.cos_to_b)} "
                       f"{_f(m.cos_legs, 9)} {_f(m.norm_ratio, 8)} {_f(m.r)} {_f(m.rel_residual, 8)} "
                       f"{_f(m.alpha.point)} {_f(m.beta.point)} {m.n_sources:5d} "
-                      f"{('yes' if m.rows_identical else 'NO'):>5s}")
+                      f"{('yes' if m.rows_identical else 'NO'):>5s}{why}")
             head = f"{'':14s}"  # candidate printed once, on its first pair
 
 
@@ -167,17 +221,22 @@ def main() -> None:
     t0 = time.time()
 
     def progress(key, res):
-        n = sum(1 for c in res.by_cell.values() if c.n_sources)
-        print(f"  {key:22s} {n}/{len(res.by_cell)} evaluable cells  "
+        # `reason is None` is the evaluability test, NOT `n_sources`: a duplicate_rows
+        # cell reports the sources it paired and still carries no statistics.
+        n = sum(1 for c in res.by_cell.values() if c.reason is None)
+        skipped = Counter(c.reason for c in res.by_cell.values() if c.reason is not None)
+        why = ("  (" + ", ".join(f"{r}: {k}" for r, k in sorted(skipped.items())) + ")") if skipped else ""
+        print(f"  {key:22s} {n}/{len(res.by_cell)} evaluable cells{why}  "
               f"({(time.time() - t0) / 60:.1f} min elapsed)", flush=True)
 
     results = analyze_additivity(man, ALL_CANDIDATES, CACHE, on_candidate=progress)
     print(f"\nanalysis done in {(time.time() - t0) / 60:.1f} min", flush=True)
 
-    guard = check_legacy(results, REPORTS / "combos_real.json")
+    guard = guard_or_abort(results, REPORTS / "combos_real.json")
     print(f"D3 guard: {guard['n_cells_identical']} cells with identical rows, "
           f"{guard['n_cosines_verified']} cosines reproduced bit-for-bit, "
-          f"{guard['n_cells_differing']} cells where source pairing changed the selection", flush=True)
+          f"{guard['n_cells_differing']} cells where source pairing changed the selection, "
+          f"{guard['n_cells_both_unevaluable']} unevaluable on both sides", flush=True)
 
     out = write_atomic(REPORTS / "additivity_real.json", to_jsonable({
         "by_candidate": {
@@ -203,4 +262,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--scan-duplicates", action="store_true",
+                    help="only check whether additivity()'s per-source row-count guard "
+                         "could fire on this bank (seconds; opens no latent)")
+    args = ap.parse_args()
+    raise SystemExit(scan_duplicates() if args.scan_duplicates else main())
