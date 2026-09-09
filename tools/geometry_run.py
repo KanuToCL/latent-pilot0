@@ -161,12 +161,18 @@ def analyze_candidate(manifest: dict, name: str, variant: str, common) -> dict:
     })
 
 
-def _conc_line(label: str, cc: dict, null: float, extra: str = "") -> str:
-    """nan -> null under to_jsonable, so a degenerate cell prints 'n/a', never crashes."""
+def _conc_line(label: str, cc: dict, extra: str = "") -> str:
+    """The concentration C itself, and nothing derived from the null.
+
+    S4: `C / (1/sqrt(D))` was printed as "x N null" and read as a score. It is not one
+    - 1/sqrt(D) is the RMS cosine of a single random PAIR in D dimensions, so the ratio
+    is a function of the nominal dimension and inflates with duplicated or dead
+    channels. The reference is still printed once, above, as a reference.
+
+    nan -> null under to_jsonable, so a degenerate cell prints 'n/a', never crashes."""
     if cc["mean_cosine"] is None:
         return f"    {label:11s}    n/a{extra}"
-    return (f"    {label:11s} {cc['mean_cosine']:+.4f}  x{cc['mean_cosine'] / null:6.1f} null"
-            f"   n={cc['n_rows']}{extra}")
+    return f"    {label:11s} {cc['mean_cosine']:+.4f}   n={cc['n_rows']}{extra}"
 
 
 def print_candidate(block: dict) -> None:
@@ -177,11 +183,12 @@ def print_candidate(block: dict) -> None:
     null = block["null_scale"]
     conc = block["shift"]["concentration"]
     rho = block["shift"]["magnitude"]["srcc_by_family"]
-    print(f"  delta concentration (mean pairwise cosine)   null 1/sqrt(D) = {null:.4f}")
-    print(_conc_line("pooled", conc["overall"], null))
+    print(f"  delta concentration C (mean pairwise cosine)   "
+          f"single-pair RMS null 1/sqrt(D) = {null:.4f} (reference, not a score)")
+    print(_conc_line("pooled", conc["overall"]))
     for fam, cc in conc["by_family"].items():
         r = rho.get(fam)
-        print(_conc_line(fam, cc, null, f"   srcc(sev,||d||)={'n/a' if r is None else f'{r:+.2f}'}"))
+        print(_conc_line(fam, cc, f"   srcc(sev,||d||)={'n/a' if r is None else f'{r:+.2f}'}"))
     red = block["shift"]["reduction"]
     ks = ", ".join(f"k={k}: {v['cumulative_explained']:.2f}" for k, v in sorted(red["by_k"].items(), key=lambda kv: int(kv[0])))
     print(f"  PCA cumulative explained variance of the degraded rows -> {ks}")

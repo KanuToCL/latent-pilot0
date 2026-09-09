@@ -83,7 +83,10 @@ def fig_centroid_pca(block: dict, path: Path) -> Path:
 
 
 def fig_concentration(block: dict, path: Path) -> Path:
-    """(c) per-family delta concentration vs the 1/sqrt(D) isotropic null."""
+    """(c) per-family delta concentration C, with the single-pair RMS null drawn as a
+    reference line. S4: the ratio C / (1/sqrt(D)) is NOT a score - 1/sqrt(D) is the RMS
+    cosine of one random pair in D dimensions and stays a function of the nominal
+    dimension, so duplicated or dead channels inflate it."""
     by_fam = block["shift"]["concentration"]["by_family"]
     fams = list(by_fam)
     vals = [_f(by_fam[f]["mean_cosine"]) for f in fams]
@@ -92,7 +95,8 @@ def fig_concentration(block: dict, path: Path) -> Path:
 
     fig, ax = plt.subplots(figsize=(1.1 * len(fams) + 3.0, 5.0))
     ax.bar(range(len(fams)), vals, color=[colors[f] for f in fams])
-    ax.axhline(null, color="white", ls="--", lw=1.2, label=f"null 1/sqrt(D) = {null:.3f}")
+    ax.axhline(null, color="white", ls="--", lw=1.2,
+               label=f"single-pair RMS null 1/sqrt(D) = {null:.3f} (reference, not a score)")
     ax.axhline(0.0, color="grey", lw=0.8)
     for i, v in enumerate(vals):
         if np.isfinite(v):

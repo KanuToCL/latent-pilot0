@@ -1,12 +1,23 @@
-"""EnergyEncoder — the level-only control baseline.
+"""EnergyEncoder — the spectral-band energy control: level, balance, temporal dispersion.
 
 Per-frame [log total energy, log LF energy (<1 kHz), log HF energy (≥4 kHz)] — a
 deliberately strong loudness / spectral-tilt representation. Because we never
 renormalise (L3) and the L4 headroom scalar preserves relative energies, additive
 degradations (noise/hiss/hum) raise RMS with severity and subtractive ones
 (clip/bandlimit/mp3/dropout) lower it, so a level meter alone tracks severity. A
-codec that cannot BEAT this control on severity is not reading degradation — it is
-reading loudness (elder finding B1). Real DSP, torch-free, runs everywhere.
+codec that cannot BEAT this control on severity is not reading degradation (elder
+finding B1). Real DSP, torch-free, runs everywhere.
+
+It is NOT "level-only", which is what this docstring used to claim and what Gate 1's
+G1b wording leaned on (S7). Pooled mean+std gives six coordinates and a uniform gain
+moves exactly one direction of them — the three log-MEANS together,
+`(1,1,1,0,0,0)/√3`. The three log-STDs are gain-invariant, and so is every
+spectral-balance contrast among the means, so "beats the energy control" is not the
+same claim as "is not reading loudness". `probes/level_split.py` scores the level
+coordinate and its 5-d complement separately, which is the honest way to ask.
+
+`_EPS` sits inside the log, so below about −80 dBFS the features stop being
+gain-equivariant; the corpus floor is near −60 dBFS, well clear.
 """
 
 from __future__ import annotations
