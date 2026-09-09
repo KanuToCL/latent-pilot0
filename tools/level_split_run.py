@@ -13,6 +13,15 @@
 #
 # The projection is done in the RAW pooled space, before any scaler (AM3); the
 # ridge standardises after projection, exactly as the gate's probe does.
+#
+# Section map (file order):
+#   write_atomic(path, payload)        - tmp + os.replace
+#   assert_gate_grid(n_common)         - pin this run's cell grid to the gate run's
+#   low_frame_audit(manifest, grid)    - AM4: frames below -80 dBFS, per family
+#   _est(e)                            - Estimate -> {point, lo, hi}
+#   _f(x, width)                       - table cell formatter
+#   print_summary(res, low, frames)    - 6-d vs level-1d vs invariant-5d table
+#   main()                             - -> reports/level_split_real.json
 import json
 import os
 import time

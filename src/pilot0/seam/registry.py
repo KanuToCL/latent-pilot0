@@ -12,6 +12,18 @@ through `variant_semantics()`. S2 found the label "pre-quant z" travelling into
 three docs and two HTML pages while DAC's `z` was the QUANTIZER output; the string
 is data with a drift guard so a report can never carry the numbers without the
 meaning.
+
+Section map (file order):
+  _DEPTH_SEMANTICS              - shared depth-variant semantics, spliced into REAL_SPECS
+  REAL_SPECS                    - the runtime source of truth (mirrored by models.yaml)
+  _ENCODER_FIELDS / WIRED_FAMILIES / FAKE_PREFIX / FLOOR_NAME / ENERGY_NAME / BASELINES
+  BASELINE_SEMANTICS            - the same `semantics` contract for logmel and energy
+  _FAMILY_REQUIRES              - family -> the import that must exist to encode it
+  make_encoder(name)            - "fake-<base>" | "<base>" -> encoder instance
+  _encoder_fields(spec)         - the FakeEncoder-facing subset of a spec
+  variant_semantics(name, v)    - what one latent IS; KeyError on an unknown variant
+  candidate_semantics(cands)    - {"name:variant": semantics} for a report block
+  available_encoders()          - name -> is it encodable in THIS environment
 """
 
 from __future__ import annotations

@@ -9,6 +9,18 @@
 #
 # Usage:  geometry_run.py                      all 17 candidates + the log-mel floor
 #         geometry_run.py logmel:mel encodec24k:z    just those two
+#
+# Section map (file order):
+#   key_of(name, variant)          - "name:variant" report key
+#   parse_candidates(argv)         - argv -> candidate list, defaulting to all
+#   assert_gate_grid(n_common)     - pin this run's cell grid to the gate run's
+#   assemble(manifest, n, v, common) - cached latents -> ProbeData on the common cells
+#   analyze_candidate(...)         - geometry + shift for one candidate -> report block
+#   _conc_line(label, cc, extra)   - one concentration line for the printed summary
+#   print_candidate(block)         - the per-candidate summary
+#   write_atomic(path, payload)    - tmp + os.replace
+#   render_figures(blocks)         - reports/figures/geometry/*.png
+#   main(argv)                     - -> reports/geometry_real.json + figures
 import dataclasses
 import json
 import os
