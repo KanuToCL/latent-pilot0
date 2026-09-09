@@ -333,7 +333,8 @@ cartographer elders; APPROVE-WITH-FIXES (one SHOWSTOPPER), all findings landed.
   loudness meter tracks severity. `seam/energy.py` (`EnergyEncoder`: per-frame
   [log total, log LF, log HF] energy) is now a first-class baseline, and G1b
   requires the codec's severity SRCC to **beat the energy control by ≥ 0.05 per
-  family** — otherwise "reads severity" is just "reads level". The demo confirms
+  family** — otherwise "reads severity" is just "reads level"
+  `[erratum 2026-09-09 → §corrections]`. The demo confirms
   it bites: the fake codec passes 0/7 because it cannot beat energy.
 - **Bootstrap CIs, CI-lower gating, underpowered guard (B2 / M3 / W2 / S2).**
   Every metric carries a 95% CI resampled over TEST GROUPS (`metrics.bootstrap_over_groups`,
@@ -681,24 +682,36 @@ redefined and no historical text above is rewritten** — this section states, p
 anchored claim, what is retracted, downgraded, or stands. New numbers come from
 `reports/ceiling_real.json`, `reports/additivity_real.json` and
 `reports/level_split_real.json` (all read the same banked latents; no GPU run).
+Each finding keeps its **body to ≤ 120 words**; tables and the labelled
+**Note. / What stands. / Retracted. / Provenance.** riders carry the rest.
 
 ### S1 — "nobody reaches 4/7" is not a fact about the codecs (RETRACTED as a verdict)
 
 Anchor: the G1b bullet, "nobody reaches 4/7". With 100 test sources per level the
 ladder is massively tied, so any Spearman against it is capped at **0.9798** (K=5)
-and **0.9428** (band-limit, K=3). The energy control is already at that cap —
-without-clean point 0.9797979 on noise (the K=5 ceiling to seven decimals), 99.93 %
-on hiss, 99.91 % on band-limit, 95 % on hum — and G1b's bar is its CI-UPPER plus
-0.05: 1.0298 / 1.0297 / 0.9928 / 0.9938. All four land **above the ceiling**. Only
-clip, mp3 and dropout are feasible, G1b needs four, and an oracle probe pinned at
-the ceiling with a zero-width CI passes **3/7** — the severity leg was unreachable
-by any representation. One number in `reports/ceiling_real.json` reads oddly and is
-not a contradiction: the energy control's bootstrap CI-upper can sit a hair *above*
-the design ceiling (noise 0.9798137 vs 0.9797979, +1.6e-5; band-limit +3.1e-5),
-because the ceiling is that of the full balanced ladder while each bootstrap resample
-draws its own unbalanced one and is not bounded by it — an excursion of ~1e-5 against
-a 0.05 margin, which moves no verdict here. What stands: the run was well powered
-(20 test groups) and every per-candidate count reproduces exactly.
+and **0.9428** (band-limit, K=3). The energy control is at or within 4 % of that cap
+on noise, hiss, band-limit and hum (table), and G1b's bar is its CI-upper plus 0.05 —
+so on all four the bar lands **above the ceiling**. Only clip, mp3 and dropout are
+feasible; G1b needs four. An oracle probe pinned at the ceiling with a zero-width CI
+passes **3/7**: the severity leg was unreachable by any representation. What stands:
+every per-candidate count reproduces exactly, and the run was **eligible under the
+`MIN_TEST_GROUPS = 3` guard** (20 test groups); no power analysis was run.
+
+| family | ceiling `rho_max` | energy CI-upper | G1b bar (`required_lo`) | feasible |
+|---|---|---|---|---|
+| noise | 0.9797979 | 0.9798137 | 1.0298 | no |
+| hiss | 0.9797979 | 0.9797260 | 1.0297 | no |
+| hum | 0.9797979 | 0.9438126 | 0.9938 | no |
+| band-limit | 0.9428143 | 0.9428457 | 0.9928 | no |
+| clip | 0.9797979 | 0.5621771 | 0.8000 | yes |
+| mp3 | 0.9797979 | 0.5754085 | 0.8000 | yes |
+| dropout | 0.9797979 | 0.7428710 | 0.8000 | yes |
+
+**Note.** The energy CI-upper sits a hair *above* the ceiling on noise (+1.6e-5) and
+band-limit (+3.1e-5). Not a contradiction: `rho_max` is the FULL balanced ladder's
+ceiling, while each bootstrap resample draws its own unbalanced one and is not bounded
+by it. ~1e-5 against a 0.05 margin moves no verdict here. `tools/ceiling_run.py` now
+derives this caveat from the report it writes rather than stating it.
 
 ### S7 — "the level-only control" (RETRACTED)
 
@@ -723,9 +736,10 @@ clip the level coordinate carries **nothing** (−0.013). "Energy-explained" is
 therefore not "loudness-explained": the control is a spectral-balance and
 temporal-dispersion representation, so beating it is a harder, different claim than
 the one published. A level-matched arm could not have shown this — no uniform gain
-touches the invariant subspace (regression-tested in `tests/test_levelmatch.py`).
-Validity bound: 1 frame in 10,582,738 sits below −80 dBFS, where `_EPS` would begin
-to matter, so the split is not epsilon-limited.
+touches the invariant subspace (`tests/test_levelmatch.py`).
+
+**Note.** 1 frame in 10,582,738 sits below −80 dBFS, where `_EPS` would begin to
+matter, so the split is not epsilon-limited.
 
 ### S2 — "pre-quant z" on DAC (RETRACTED)
 
@@ -749,39 +763,89 @@ a latent channel inflates the ratio without changing the geometry, and a
 `null_sd_mean` correction does not fix it (the duplicated-feature counterexample
 survives it). The multiplier is therefore not a score and is no longer printed;
 `tools/geometry_run.py` prints `C` itself and the figure line reads "single-pair RMS
-null 1/√D (reference, not a score)". What stands: every raw concentration `C`
-(pooled 0.16, per-family 0.40–0.88 for encodec z) and the ORDERING across families
-and candidates, including mimi:semantic as the negative control — those are
-dimension-free comparisons within a candidate.
+null 1/√D (reference, not a score)".
 
-### S5 — "the axes survive reduction" (DOWNGRADED, no new number)
+**What stands.** Every raw concentration `C` (pooled 0.16, per-family 0.40–0.88 for
+encodec z) and the ORDERING across families and candidates — dimension-free
+comparisons within a candidate. **Not** mimi:semantic as a known-zero negative
+control: audit S8 records its macro-F1 at **0.402**, and Mimi's semantic and acoustic
+quantizers run in parallel with both contributing to reconstruction, so nothing
+establishes a damage-free semantic channel. It is a lower-performing comparison
+condition; its low concentration stands as an observation only.
+
+### S5 — "the axes survive reduction" (DOWNGRADED to in-sample)
 
 Anchor: the reduction-persistence bullet. The PCA is fit on the same degraded rows
 the persistence is then measured on, so "survives reduction to k=2" is an in-sample
 statement, not a held-out one. Held-out projection evaluation is out of scope for
-this remediation and no replacement number is offered here — the claim should be
-read as descriptive until one exists.
+this remediation and no *held-out* replacement number is offered here — the claim
+should be read as descriptive until one exists.
+
+**What stands.** The axes are distinct in full D and merge in the 2-D view, and
+`reports/geometry_real.json` says by how much: WavLM l1's between-family
+mean-direction cosine has full-D median **−0.008** against k=2 median **+0.416**,
+with band-limit–mp3 reaching **0.999871** at k=2. The 2-D picture collapses distinct
+directions; it is not evidence that they were never distinct.
 
 ### S6 — "superposition holds for independent artifacts" (DOWNGRADED, and split in two)
 
 Anchor: the Phase-7 heading. One cosine cannot carry that claim. At severity 3
-**noise+clip** reads cosine 0.999–1.000 across all seven candidates — yet cos_to_a
-0.99–1.00 against cos_to_b 0.08–0.40, cos_legs 0.07–0.39, norm_ratio 9–31, and
-(α, β) = (≈1.00, 0.04–0.34). The combo sits on the noise leg and clip is barely
-present: dominance by a leg an order of magnitude larger, which no cosine can
-distinguish from addition. **hum+mp3** at 3 is the real thing — cosine 0.988–1.000
-with cos_to_a 0.15–0.78, cos_to_b 0.58–0.98, cos_legs −0.04 to 0.20, norm_ratio
-0.18–1.26, and α 0.31–0.98, β 0.61–1.00: two comparable, near-orthogonal legs that
-genuinely add. "Superposition holds" becomes "superposition holds where the legs are
-comparable and near-orthogonal, and is *untestable* where one dominates".
+**across all 18 candidates**, **noise+clip** reads cosine 0.999–1.000 — and sits on
+the noise leg with clip barely present: dominance by a leg an order of magnitude
+larger, which no cosine can distinguish from addition. **hum+mp3** is the real thing,
+two comparable and near-orthogonal legs that genuinely add — though `dac44k:z` carries
+little hum there (α 0.31, cos_to_a 0.15). "Superposition holds" becomes "superposition
+holds where the legs are comparable and near-orthogonal, and is *untestable* where one
+dominates".
 
-Provenance: the numbers come from `reports/additivity_real.json`, computed at
+| pair @ sev 3, all 18 candidates | cosine | cos_to_a | cos_to_b | cos_legs | norm_ratio | α | β |
+|---|---|---|---|---|---|---|---|
+| noise+clip | 0.999–1.000 | 0.99–1.00 | 0.08–0.40 | 0.07–0.39 | 9.1–31.7 | ≈1.00 | 0.04–0.40 |
+| hum+mp3 | 0.988–1.000 | 0.15–0.78 | 0.58–1.00 | −0.04–0.20 | 0.07–1.26 | 0.31–0.98 | 0.61–1.00 |
+| hiss+bandlimit | 0.54–0.96 | −0.50–0.75 | 0.48–0.98 | −0.59–0.40 | 0.55–2.52 | 0.23–0.82 | 0.55–1.52 |
+
+**What stands.** hiss+bandlimit is the interaction readout. Over its 30 evaluable
+cells (severities 2 and 3) α < 1 in **30/30** (median 0.44) while β > 1 in **24/30**
+(median 1.05): the hiss leg is under-recovered and the band-limit leg over-recovered,
+which is what band-limiting away the hiss band predicts. The Phase-7 line
+"sub-additivity here is fidelity to signal physics, not representational failure"
+stands **as a directional claim** — the cosine falls with severity, median
+0.97 → 0.85 → 0.73.
+
+**Retracted.** Its *magnitude* reading does not follow: `r = ‖Δ̄ab‖ / ‖Δ̄a+Δ̄b‖`
+exceeds 1 in 20/30 of those cells (median 1.12), so the combo is LONGER than the
+linear sum — the anti-aligned legs (`cos_legs` median −0.45) cancel in that sum. The
+report carries no raw leg norms, so triangle-inequality sub-additivity is not
+computable from it at all. Also retracted: "logmel's +0.989 mean is the expected
+linear ceiling" (log-power mel is nonlinear in waveform addition, so no linear ceiling
+is expected there — +0.989 is a measurement, not a reference), and "axis decomposition
+of independent artifacts is safe in every candidate latent" (safe only where the legs
+are comparable and near-orthogonal, which noise+clip is not).
+
+**Provenance.** The numbers come from `reports/additivity_real.json`, computed at
 `60f761c` before `combos/additivity.py` gained its duplicate-row guard. The guard is
 proven inert on this bank: `additivity_run.py --scan-duplicates` finds 0 duplicate
 role/source keys across all 18 candidates (400,350 keys), and recomputing the two
 coverage-edge candidates with the guard in place reproduces all 18 of their cells
 field-for-field. The D3 regression guard reproduced 156 evaluable cells bit-for-bit
-against `combos_real.json`; the other 6 — `hiss+bandlimit@2` on the six 16 kHz
-candidates, where band-limit 2 sits at or above Nyquist — are unevaluable in *both*
-reports. That run's `n_cells_differing: 6` was a mis-binning of those six, not a
-discrepancy; `combos/legacy_check.py` now counts them as `n_cells_both_unevaluable`.
+against `combos_real.json` (sha256 `633a2cbf…`, now asserted by the runner before use);
+the other 6 — `hiss+bandlimit@2` on the six 16 kHz candidates, where band-limit 2 sits
+at or above Nyquist — are unevaluable in *both* reports. That run's
+`n_cells_differing: 6` mis-binned those six; `combos/legacy_check.py` now counts them
+as `n_cells_both_unevaluable`.
+
+### Not addressed in this pass
+
+Named so the next reader does not mistake silence for agreement.
+
+- **The Gate-1 "publish the negative" conclusion** (`:589`). S1 shows the severity leg
+  was unreachable by construction, which changes what that negative would mean — and
+  re-reading this data cannot settle it. Deferred to a prospective run against a
+  feasible criterion; the owner's two candidates are in
+  `docs/plans/2026-09-09-level-matched-arm.design.md` §6.
+- **S3 stimulus equivalence** (`:346`). The intersection equalises *conditions*, not
+  physical stimuli: each model is degraded and encoded at its own native rate, so this
+  compares complete native-rate pipelines. The fix is the canonical-bandwidth arm, out
+  of scope here (same design doc, §4).
+- **Held-out projection evaluation** (S5). No held-out number for reduction
+  persistence exists; the in-sample reading above is what there is.
