@@ -90,6 +90,101 @@ def test_unmeasurable_clean_partner_is_refused():
     assert not m.applied and m.reason == "clean_not_measurable"
 
 
+# --- the gain bound (R8) ------------------------------------------------------
+
+
+def test_an_absurd_gain_is_refused_rather_than_applied():
+    """A 40 dB correction means this is not the same recording — a mispaired manifest
+    row, not a degradation. Applying it would produce a plausible-looking waveform and
+    hide the bug; refusing names it."""
+    clean = _speech_like()
+    far_too_quiet = clean * 10 ** (-40.0 / 20.0)
+
+    out, m = match_loudness(far_too_quiet, clean, SR)
+    assert not m.applied and m.reason == "gain_out_of_range"
+    assert m.gain_db == 0.0  # nothing was applied, and the field says so
+    assert np.allclose(out, far_too_quiet)  # returned untouched
+    assert not m.within_tolerance
+    # the refused magnitude stays recoverable from the two measurements
+    assert m.clean_lufs - m.degraded_lufs == pytest.approx(40.0, abs=0.01)
+
+
+@pytest.mark.parametrize("gain_db, applied", [(19.0, True), (21.0, False)])
+def test_the_default_bound_separates_nineteen_from_twenty_one_db(gain_db, applied):
+    clean = _speech_like()
+    out, m = match_loudness(clean * 10 ** (-gain_db / 20.0), clean, SR)
+    assert m.applied is applied
+    assert m.reason == ("matched" if applied else "gain_out_of_range")
+
+
+def test_a_gain_exactly_at_the_bound_is_accepted():
+    """The predicate is `> max_abs_gain_db`, so the bound itself passes. Pinned by
+    setting the bound to the gain this pair actually needs, rather than hoping a
+    measured LUFS difference lands on 20.000000."""
+    clean = _speech_like()
+    quiet = clean * 10 ** (-6.0 / 20.0)
+    exact = match_loudness(quiet, clean, SR, max_abs_gain_db=100.0)[1].gain_db
+
+    assert match_loudness(quiet, clean, SR, max_abs_gain_db=exact)[1].reason == "matched"
+    assert match_loudness(quiet, clean, SR,
+                          max_abs_gain_db=np.nextafter(exact, 0.0))[1].reason == "gain_out_of_range"
+
+
+def test_the_bound_is_symmetric_for_a_clip_that_is_too_loud():
+    clean = _speech_like()
+    out, m = match_loudness(clean * 10 ** (40.0 / 20.0), clean, SR)
+    assert not m.applied and m.reason == "gain_out_of_range"
+    assert m.gain_db == 0.0
+
+
+def test_the_bound_is_a_parameter_so_a_caller_can_state_its_own():
+    clean = _speech_like()
+    quiet = clean * 10 ** (-6.0 / 20.0)
+    assert match_loudness(quiet, clean, SR, max_abs_gain_db=3.0)[1].reason == "gain_out_of_range"
+    assert match_loudness(quiet, clean, SR, max_abs_gain_db=10.0)[1].reason == "matched"
+
+
+# --- peak_dbfs_after (R8) -----------------------------------------------------
+
+
+def test_peak_after_is_measured_on_the_waveform_actually_returned():
+    clean = _speech_like()
+    quiet = clean * 10 ** (-6.0 / 20.0)
+    out, m = match_loudness(quiet, clean, SR)
+    expected = 20 * np.log10(np.max(np.abs(out)))
+    assert m.peak_dbfs_after == pytest.approx(float(expected), abs=1e-12)
+    # ... which is the INPUT peak lifted by the applied gain, not the input's peak
+    assert m.peak_dbfs_after == pytest.approx(20 * np.log10(np.max(np.abs(quiet))) + m.gain_db,
+                                              abs=1e-9)
+
+
+def test_a_match_that_pushes_past_full_scale_is_visible_in_the_audit():
+    """The gain is chosen for loudness, not for headroom: a quiet clip with a high
+    crest factor can land above 0 dBFS. The record has to show it — this is what the
+    achieved-level audit reads."""
+    clean = _speech_like() * 0.95
+    quiet = clean * 10 ** (-6.0 / 20.0)
+    quiet[100] = 0.9  # a lone transient the loudness gate barely notices
+
+    out, m = match_loudness(quiet, clean, SR)
+    assert m.applied
+    assert m.peak_dbfs_after > 0.0  # 0.9 lifted ~6 dB clears full scale
+    assert np.max(np.abs(out)) > 1.0  # and the waveform really is over
+
+
+def test_peak_after_on_a_refused_clip_describes_the_untouched_clip():
+    clean = _speech_like()
+    short = _speech_like(seconds=0.2)
+    _, m = match_loudness(short, clean, SR)
+    assert not m.applied
+    assert m.peak_dbfs_after == pytest.approx(float(20 * np.log10(np.max(np.abs(short)))), abs=1e-12)
+
+
+def test_digital_silence_reports_minus_infinity_not_a_floor():
+    _, m = match_loudness(np.zeros(int(SR * 3.0)), _speech_like(), SR)
+    assert m.peak_dbfs_after == -np.inf  # never a sentinel that reads as "very quiet"
+
+
 # --- the honest negative control (F19) ----------------------------------------
 
 

@@ -33,8 +33,18 @@ a weaker question, about the stimulus.
 - pyloudnorm 0.2.0 raises `ValueError` below 400 ms (its block size) — `too_short`.
 - Digital silence, and anything wholly below the gate, measures `−inf` —
   `degraded_not_measurable` / `clean_not_measurable`.
+- A required gain beyond ±`max_abs_gain_db` (default 20 dB) — `gain_out_of_range`.
+  The measured per-cell gains are all under 1.2 dB (§4), so this is not a tuning
+  knob: it is the assertion that the degraded clip and its clean partner are the
+  same recording. A mispaired manifest row asking for 40 dB would otherwise be
+  applied silently and the arm would look like it had worked.
 - Every refusal returns the audio untouched with `applied=False` and a reason. A
-  NaN gain never reaches a waveform.
+  NaN gain never reaches a waveform, and `gain_db` stays `0.0` on every refusal —
+  the refused magnitude is recoverable as `clean_lufs − degraded_lufs`.
+- `peak_dbfs_after` is recorded on every path, refusals included, since it describes
+  the waveform actually returned. The gain is chosen for loudness, not headroom, so a
+  quiet clip with a high crest factor can land above 0 dBFS; the achieved-level audit
+  must see that rather than infer it. Digital silence reports `−inf`, not a floor.
 
 ## 4. Rate-dependent gain (F20 / AM7)
 
