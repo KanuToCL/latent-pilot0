@@ -110,8 +110,23 @@ None blocking. Owner decisions live in the design note (D8).
 | HTML erratum shape | | | ● | `.card`, ≤ 2 sentences |
 | `energy.py:1` "level-only" | | ● | | P6 |
 
+## 9. Binding amendments (v2.1, from the Gate-4 re-verdicts) — override §4 where they differ
+
+- AM1 (Adv) **Ceiling pins regenerated from scipy, never by hand.** `[100]*5 → 0.9797978567`, `[100]*3 → 0.9428142795`, `[3,100,100] → 0.8723164502`, `[100,100,100,100,98] → 0.9797939376`. Tests compare `spearman_ceiling(counts)` to `scipy.stats.spearmanr` on constructed perfectly-ordered untied predictions (abs 1e-10) and to these literals (abs 1e-9). v2's `0.9797958971` was the m→∞ limit — wrong.
+- AM2 (Adv) Both additivity serializers (`tools/job_c_run.py::additivity_dict`, `release/artifacts.py::_additivity_json`) emit the full new field set including `n_sources` and `rows_identical`; a test asserts their key sets are equal.
+- AM3 (Phy) P4 projects in **raw pooled space** (unstandardized log-energies) before any scaler; the ridge pipeline standardizes after projection. JSON records `projection_space: "raw"`.
+- AM4 (Phy) P4 report flags cells with any frame below −80 dBFS (count per family) and states the `_EPS` validity bound (F15).
+- AM5 (Phy) P4 synthetic test uses a non-degenerate noise floor (≈ −60 dBFS) so the level channel is measured above `_EPS`.
+- AM6 (Phy) Key `rho_max_balanced` → `rho_max_balanced_crosscheck`, documented "cross-check only; invalid when level counts are unbalanced".
+- AM7 (Phy) Design note records the measured per-rate gain spread: bandlimit/5 +1.14/+0.56/+0.31 dB at 44.1/24/16 kHz (0.83 dB spread), mp3/5 0.71 dB, hiss/5 0.19 dB; the same master's absolute LUFS across rates spans 1.0 LU.
+- AM8 (Arch) `variant_semantics()` also feeds candidate metadata in `tools/job_c_run.py:177–178` and `release/artifacts.py:57`.
+- AM9 (Arch) P4 was added after the Gate-3 review; Physics reviewed its physics at Gate 4. Gate-6 auditors give it full scrutiny; Gate 8 asks the Architect about it explicitly.
+- AM10 (Arch) `seam/real.py` (214 lines) gets a section map when edited.
+- AM11 (Arch) Report names follow the tool domain: `tools/ceiling_run.py → reports/ceiling_real.json`, `tools/additivity_run.py → reports/additivity_real.json`, `tools/level_split_run.py → reports/level_split_real.json` (mirrors `geometry_run.py → geometry_real.json`). §1's report names are superseded.
+- AM12 (Arch) D2's cost (next full encode pass includes `dac44k:enc`, one DAC corpus pass) is an **owner decision** listed in the design note and named in the DECISIONS correction; the owner may drop `enc` from `REAL_SPECS` before that run.
+
 ## Ritual ledger
 - G1 cartographers: haiku ×4 (A probes/gate, B seam/DAC, C combos/geometry, D stimulus/claims) — 2026-09-09, F1–F18.
 - G2 plan v1 by orchestrator. Ring collapsed to 3 elders (Adversarial, Physics, Architect) by owner request.
 - G3 elder ring on v1: NOT APPROVED ×3 (2026-09-09) — 17 distinct findings (§8). Parallel-stream mode abandoned (disjointness false at API level). v1-A3 cut on Physics' derivation.
-- G4 plan v2 written; re-verdict requested from the same three elders.
+- G4 re-verdict on v2 (7fed818): APPROVED WITH CONCERNS ×3 → 12 binding amendments AM1–AM12 (§9), plan v2.1. Adversarial caught two wrong ceiling literals in v2 (AM1).
