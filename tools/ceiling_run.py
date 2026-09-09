@@ -10,6 +10,15 @@
 # an oracle probe - one pinned exactly at the ceiling - could pass.
 #
 # Gate 1 is not redefined: every threshold is imported from probes/gate1.py.
+#
+# Section map (file order):
+#   write_atomic(path, payload)            - tmp + os.replace
+#   assert_gate_grid(report, n_common)     - pin this run's cell grid to the gate run's
+#   assert_shared_energy_baseline(report)  - one energy control for every candidate
+#   ceiling_dict(c)                        - FamilyCeiling -> report record
+#   print_families(ceilings)               - the per-family ceiling table
+#   print_candidates(summaries)            - absolute clears vs margin passes
+#   main()                                 - -> reports/ceiling_real.json
 import json
 import os
 from pathlib import Path
@@ -36,6 +45,10 @@ CAVEATS = [
     "required_lo reads the FROZEN Gate-1 thresholds forward; nothing here re-tunes them",
     "rho_max_balanced_crosscheck is invalid when the level counts are unbalanced - it overstates (AM6)",
     "the oracle probe is a zero-width CI at the ceiling: no real probe can beat it",
+    "energy_hi can sit a hair ABOVE rho_max (noise +1.6e-5, bandlimit +3.1e-5) without "
+    "contradicting it: rho_max is the ceiling of the FULL balanced ladder, while each "
+    "bootstrap resample draws its own unbalanced ladder and is not bounded by it. The "
+    "excursion is ~1e-5 against a 0.05 margin, so no verdict here turns on it",
 ]
 
 

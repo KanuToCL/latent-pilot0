@@ -692,8 +692,13 @@ on hiss, 99.91 % on band-limit, 95 % on hum — and G1b's bar is its CI-UPPER pl
 0.05: 1.0298 / 1.0297 / 0.9928 / 0.9938. All four land **above the ceiling**. Only
 clip, mp3 and dropout are feasible, G1b needs four, and an oracle probe pinned at
 the ceiling with a zero-width CI passes **3/7** — the severity leg was unreachable
-by any representation. What stands: the run was well powered (20 test groups) and
-every per-candidate count reproduces exactly.
+by any representation. One number in `reports/ceiling_real.json` reads oddly and is
+not a contradiction: the energy control's bootstrap CI-upper can sit a hair *above*
+the design ceiling (noise 0.9798137 vs 0.9797979, +1.6e-5; band-limit +3.1e-5),
+because the ceiling is that of the full balanced ladder while each bootstrap resample
+draws its own unbalanced one and is not bounded by it — an excursion of ~1e-5 against
+a 0.05 margin, which moves no verdict here. What stands: the run was well powered
+(20 test groups) and every per-candidate count reproduces exactly.
 
 ### S7 — "the level-only control" (RETRACTED)
 
