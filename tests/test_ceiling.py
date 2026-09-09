@@ -150,7 +150,12 @@ def test_level_counts_and_k_map_come_from_the_common_grid():
     assert ceil["noise"].N == 500 and ceil["bandlimit"].N == 300
 
 
-def test_ceilings_use_the_general_form_and_carry_the_balanced_crosscheck():
+def test_family_ceilings_hit_the_balanced_pins_and_the_crosscheck_agrees_there():
+    """This fixture's ladders are BALANCED (100 test rows per level), so it can only
+    show that the general form reproduces the balanced pins and that the balanced
+    closed form agrees where it is valid. The general form's behaviour on unbalanced
+    ladders is what `test_ceiling_matches_scipy_exactly` and
+    `test_balanced_closed_form_overstates_an_unbalanced_ladder` cover."""
     grid = _grid()
     ceil = family_ceilings(_report(), _manifest(grid), grid)
     assert ceil["noise"].rho_max == pytest.approx(PINNED[(100,) * 5], abs=1e-9)
