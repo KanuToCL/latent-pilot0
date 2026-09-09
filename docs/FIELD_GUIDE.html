@@ -90,8 +90,8 @@
     <h3>Encoders and their depth taps (17 candidate representations)</h3>
     <table>
       <tr><th>encoder</th><th>kind</th><th>variants swept</th><th>the question the sweep asks</th></tr>
-      <tr><td>encodec24k</td><td>neural codec (conv + RVQ)</td><td>z, d1, d2, d4, d8</td><td rowspan="2">how much survives quantization depth? (d1 = coarsest 1 codebook … d8 = 8 codebooks; z = continuous pre-quantization)</td></tr>
-      <tr><td>dac44k</td><td>neural codec (conv + RVQ)</td><td>z, d1, d2, d4, d8</td></tr>
+      <tr><td>encodec24k</td><td>neural codec (conv + RVQ)</td><td>z, d1, d2, d4, d8</td><td>how much survives quantization depth? (d1 = coarsest 1 codebook … d8 = 8 codebooks; z = continuous pre-quantization)</td></tr>
+      <tr><td>dac44k</td><td>neural codec (conv + RVQ)</td><td>z, d1, d2, d4, d8 (+ enc, not yet swept)</td><td>same question, but <strong>z here is QUANTIZED</strong> — <code>DAC.encode()</code> returns the quantizer output over all codebooks, not a pre-quant latent (erratum 2026-09-09). <code>enc</code> is DAC's continuous pre-quantization point.</td></tr>
       <tr><td>wavlm</td><td>self-supervised transformer</td><td>l1, l6, l12, l18, l24</td><td>where in the layer stack does damage info live? (low = acoustic, high = phonetic/semantic)</td></tr>
       <tr><td>mimi</td><td>codec with split streams</td><td>semantic, acoustic</td><td>does damage live in the "meaning" stream or the "sound" stream?</td></tr>
     </table>

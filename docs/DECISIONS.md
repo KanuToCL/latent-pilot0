@@ -45,6 +45,8 @@ the report-back:
 
 - **All four families ran**, first real execution of `seam/real.py`: encodec24k
   (z,d1,d2,d4,d8), wavlm (l1..l24), dac44k (z,d1..d8), mimi (semantic, acoustic).
+  [erratum 2026-09-09 → §corrections: `dac44k:z` is the QUANTIZER output, not a
+  pre-quant latent; DAC's pre-quant point is the new variant `enc`]
   Every variant `device == "cuda"`, shapes `[T, D]`, sane fps (75.0 / 49.8 / 86.2 / 12.5).
 - **D6 reconciliation: no-op.** Real latent dims match the nominal `REAL_SPECS`
   stand-ins exactly (128 / 1024 / 1024 / 512). `REAL_SPECS` + `configs/models.yaml`
@@ -249,7 +251,9 @@ cartographer; all findings below landed and re-reviewed.
   declare `z, d1, d2, d4, d8`; `d{k}` = the sum of the first k residual-codebook
   embeddings, in the same embedding space as the continuous `z`, so `latent_dim`
   is shared across a model's variants (fake auto-emits all; real sums codebooks at
-  bring-up). WavLM layer sweep and Mimi semantic/acoustic were already declared.
+  bring-up). [erratum 2026-09-09 → §corrections: "the continuous `z`" holds for
+  EnCodec only — DAC's `z` is quantized, and `enc` is its continuous point]
+  WavLM layer sweep and Mimi semantic/acoustic were already declared.
 - **All four real families wired (`WIRED_FAMILIES` = encodec/wavlm/dac/mimi).**
   `real.py` now implements DAC (`dac.DAC.load` → `from_codes` for depths) and Mimi
   (the **semantic vs acoustic split** via the split-RVQ decoders — the §2.3 headline
@@ -542,6 +546,10 @@ spectral slope, real clipping, stopband attenuation) live in `tests/test_degrade
 
 ## Gate 1 — first real-corpus run: FAIL, and the failure has structure (2026-08-22)
 
+> **Corrected 2026-09-09** — the G1b severity reading below is retracted and the
+> "level-only control" framing with it. See §"Science spot check — corrections" at
+> the end of this file.
+
 Job B complete: cache 338,130/338,130 cells, all six encoders, zero worker
 failures. Gate 1 ran per the frozen protocol (55.7 min): 34 common conditions,
 20 test groups (>= 3, so NOT underpowered — this is a clean fail, not a power
@@ -585,6 +593,10 @@ persistence under dimension reduction).
 
 ## RQ2 shift-vector geometry — directions are real everywhere probes struggled (2026-08-22)
 
+> **Corrected 2026-09-09** — the "Nx null" concentration multipliers below are
+> downgraded to descriptive, and the reduction-persistence claim is in-sample. See
+> §"Science spot check — corrections" at the end of this file.
+
 Full 18-candidate sweep (`tools/geometry_run.py`, 49 min, reports/geometry_real.json
 + figures/geometry/). Per-clip Δ = x(dirty) − x(clean) paired by source,
 standardized basis, exact all-pairs concentration, isotropic 1/sqrt(D) null.
@@ -612,6 +624,10 @@ null — spectral statistics have geometry too; the null-relative gap of wavlm l
 over the floor is the concrete positive to carry forward.
 
 ## Phase 7 combos — superposition holds for independent artifacts; the interacting pair is a severity-graded interaction readout (2026-08-22)
+
+> **Corrected 2026-09-09** — the superposition reading below rests on a cosine that
+> is not identifiable on its own; the reanalysis adds the dominance and recovery
+> metrics. See §"Science spot check — corrections" at the end of this file.
 
 Full run (`tools/job_c_parallel.py`, 141 min total: 40 min parallel encode of
 4080–22950 combo cells/encoder into the same banked-headroom cache, 141 min
@@ -655,3 +671,112 @@ and interacting pairs need either an interaction term or the encodec-style
 sub-additivity signal itself as a feature. Caveats carried in the artifact:
 descriptive (no pre-registered gate), A-then-B non-commuting order,
 content-controlled corpus, winner-confirmation split still unimplemented.
+
+## Science spot check — corrections to the Gate-1, RQ2 and Phase-7 readings (2026-09-09)
+
+Independent DSP/ML spot check (`docs/DSP_ML_SCIENCE_SPOT_CHECK_2026-09-09.md`,
+S1–S10) remediated on `fix/science-spot-check`, elder-blessed plan
+`docs/plans/2026-09-09-science-spot-check-remediation.plan.md`. **Gate 1 is not
+redefined and no historical text above is rewritten** — this section states, per
+anchored claim, what is retracted, downgraded, or stands. New numbers come from
+`reports/ceiling_real.json`, `reports/additivity_real.json` and
+`reports/level_split_real.json` (all read the same banked latents; no GPU run).
+
+### S1 — "nobody reaches 4/7" is not a fact about the codecs (RETRACTED as a verdict)
+
+Anchor: the G1b bullet, "nobody reaches 4/7". With 100 test sources per level the
+ladder is massively tied, so any Spearman against it is capped at **0.9798** (K=5)
+and **0.9428** (band-limit, K=3). The energy control is already at that cap —
+without-clean point 0.9797979 on noise (the K=5 ceiling to seven decimals), 99.93 %
+on hiss, 99.91 % on band-limit, 95 % on hum — and G1b's bar is its CI-UPPER plus
+0.05: 1.0298 / 1.0297 / 0.9928 / 0.9938. All four land **above the ceiling**. Only
+clip, mp3 and dropout are feasible, G1b needs four, and an oracle probe pinned at
+the ceiling with a zero-width CI passes **3/7** — the severity leg was unreachable
+by any representation. What stands: the run was well powered (20 test groups) and
+every per-candidate count reproduces exactly.
+
+### S7 — "the level-only control" (RETRACTED)
+
+Anchor: "the margin over the level-only control" and "severity is largely
+energy-explained". The control's pooled vector is six log-energy statistics, and a
+uniform gain moves exactly one direction of them: the three log-MEANS together,
+`(1,1,1,0,0,0)/√3`. The same ridge on that 1-d coordinate and on its orthonormal
+5-d complement (raw pooled space, pre-scaler) gives without-clean SRCC:
+
+| family | 6-d | level 1-d | invariant 5-d |
+|---|---|---|---|
+| noise | 0.980 | 0.972 | 0.980 |
+| hiss | 0.979 | 0.736 | 0.979 |
+| hum | 0.932 | 0.753 | 0.932 |
+| clip | 0.510 | −0.013 | 0.493 |
+| bandlimit | 0.942 | 0.922 | 0.942 |
+| mp3 | 0.550 | 0.419 | 0.557 |
+| dropout | 0.687 | 0.248 | 0.572 |
+
+The invariant complement matches or beats the full vector on every family, and on
+clip the level coordinate carries **nothing** (−0.013). "Energy-explained" is
+therefore not "loudness-explained": the control is a spectral-balance and
+temporal-dispersion representation, so beating it is a harder, different claim than
+the one published. A level-matched arm could not have shown this — no uniform gain
+touches the invariant subspace (regression-tested in `tests/test_levelmatch.py`).
+Validity bound: 1 frame in 10,582,738 sits below −80 dBFS, where `_EPS` would begin
+to matter, so the split is not epsilon-limited.
+
+### S2 — "pre-quant z" on DAC (RETRACTED)
+
+Anchors: `:47`, `:250` above, `docs/PILOT_A_IMPLEMENTATION.md`,
+`docs/GPU_BRINGUP.md`, `docs/TRENDS.html`, `docs/FIELD_GUIDE.html`.
+`DAC.encode()` rebinds its `z` to the quantizer output before returning
+(`dac/model/dac.py:243–247`), so every `dac44k:z` latent in the bank is quantized
+over all of the model's codebooks. It is NOT `d9`: the codebook count is asserted
+nowhere. The variant keeps its key (the bank stays valid); DAC's continuous point
+ships as a new variant `enc = model.encoder(preprocess(x))`, same `[T, D]` space,
+in `REAL_SPECS` but **not** in the frozen sweep — so no published number moves.
+Every variant now carries a `semantics` string with a yaml drift guard, read
+through a required `variant_semantics()` lookup that feeds each report's candidate
+metadata. What stands: `encodec24k:z` really is the continuous encoder output.
+
+### S4 — "9–30x the null" (DOWNGRADED to descriptive)
+
+Anchor: the RQ2 concentration bullets. `1/√D` is the RMS cosine of ONE random pair
+in D dimensions, so `C / (1/√D)` is a function of the NOMINAL dimension: duplicating
+a latent channel inflates the ratio without changing the geometry, and a
+`null_sd_mean` correction does not fix it (the duplicated-feature counterexample
+survives it). The multiplier is therefore not a score and is no longer printed;
+`tools/geometry_run.py` prints `C` itself and the figure line reads "single-pair RMS
+null 1/√D (reference, not a score)". What stands: every raw concentration `C`
+(pooled 0.16, per-family 0.40–0.88 for encodec z) and the ORDERING across families
+and candidates, including mimi:semantic as the negative control — those are
+dimension-free comparisons within a candidate.
+
+### S5 — "the axes survive reduction" (DOWNGRADED, no new number)
+
+Anchor: the reduction-persistence bullet. The PCA is fit on the same degraded rows
+the persistence is then measured on, so "survives reduction to k=2" is an in-sample
+statement, not a held-out one. Held-out projection evaluation is out of scope for
+this remediation and no replacement number is offered here — the claim should be
+read as descriptive until one exists.
+
+### S6 — "superposition holds for independent artifacts" (DOWNGRADED, and split in two)
+
+Anchor: the Phase-7 heading. One cosine cannot carry that claim. At severity 3
+**noise+clip** reads cosine 0.999–1.000 across all seven candidates — yet cos_to_a
+0.99–1.00 against cos_to_b 0.08–0.40, cos_legs 0.07–0.39, norm_ratio 9–31, and
+(α, β) = (≈1.00, 0.04–0.34). The combo sits on the noise leg and clip is barely
+present: dominance by a leg an order of magnitude larger, which no cosine can
+distinguish from addition. **hum+mp3** at 3 is the real thing — cosine 0.988–1.000
+with cos_to_a 0.15–0.78, cos_to_b 0.58–0.98, cos_legs −0.04 to 0.20, norm_ratio
+0.18–1.26, and α 0.31–0.98, β 0.61–1.00: two comparable, near-orthogonal legs that
+genuinely add. "Superposition holds" becomes "superposition holds where the legs are
+comparable and near-orthogonal, and is *untestable* where one dominates".
+
+Provenance: the numbers come from `reports/additivity_real.json`, computed at
+`60f761c` before `combos/additivity.py` gained its duplicate-row guard. The guard is
+proven inert on this bank: `additivity_run.py --scan-duplicates` finds 0 duplicate
+role/source keys across all 18 candidates (400,350 keys), and recomputing the two
+coverage-edge candidates with the guard in place reproduces all 18 of their cells
+field-for-field. The D3 regression guard reproduced 156 evaluable cells bit-for-bit
+against `combos_real.json`; the other 6 — `hiss+bandlimit@2` on the six 16 kHz
+candidates, where band-limit 2 sits at or above Nyquist — are unevaluable in *both*
+reports. That run's `n_cells_differing: 6` was a mis-binning of those six, not a
+discrepancy; `combos/legacy_check.py` now counts them as `n_cells_both_unevaluable`.
