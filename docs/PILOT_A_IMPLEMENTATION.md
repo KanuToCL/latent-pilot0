@@ -43,7 +43,7 @@ Plus: clean condition; and a **pairwise-combination subset** (noise×clipping, h
 |---|---|---|
 | EnCodec 24k | transformers | continuous pre-quant z; RVQ embeddings summed at depths {1,2,4,8} |
 | EnCodec 48k stereo | transformers/pip | music arm |
-| DAC 44.1k | descript-audio-codec pip | pre-quant z; depths {1,2,4,8} |
+| DAC 44.1k | descript-audio-codec pip | `z` = QUANTIZED (`DAC.encode()` returns the quantizer output); `enc` = continuous pre-quant encoder output; depths {1,2,4,8} |
 | Mimi | transformers | semantic tokens vs acoustic tokens separately — the split is a headline sub-experiment |
 | WavLM-Large | transformers | layers {1, 6, 12, 18, 24} |
 | log-mel (+Δ, mean/std) | torchaudio | the cheap floor (mandatory in every table) |

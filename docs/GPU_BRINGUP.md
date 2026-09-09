@@ -13,10 +13,12 @@ python -c "import torch; print(torch.cuda.is_available())"   # expect True
 ```
 
 ## 1. Real backends load & shape-check (all variants)
-All four families are wired: `encodec24k` (`z` + RVQ depths `d1,d2,d4,d8`),
-`wavlm` (layers `l1,l6,l12,l18,l24`), `dac44k` (`z` + `d1,d2,d4,d8`), `mimi`
-(`semantic`, `acoustic`). Their encode paths are BRINGUP — written against the
-documented APIs, first executed HERE.
+All four families are wired: `encodec24k` (continuous pre-quant `z` + RVQ depths
+`d1,d2,d4,d8`), `wavlm` (layers `l1,l6,l12,l18,l24`), `dac44k` (`z` = QUANTIZED,
+`enc` = continuous pre-quant, + `d1,d2,d4,d8`), `mimi` (`semantic`, `acoustic`).
+`z` is not the same object in the two codec families: `DAC.encode()` returns the
+quantizer output, so DAC's pre-quant point is `enc` (S2/F7). Their encode paths
+are BRINGUP — written against the documented APIs, first executed HERE.
 ```bash
 python - <<'PY'
 from pilot0.seam.registry import make_encoder

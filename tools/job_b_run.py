@@ -10,6 +10,7 @@ from pilot0.encode.pipeline import encode_corpus
 from pilot0.probes.gate1 import MIN_TEST_GROUPS
 from pilot0.probes.run import run_gate1
 from pilot0.provenance import is_fake, provenance
+from pilot0.seam.registry import candidate_semantics
 from pilot0.serialize import to_jsonable
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,6 +61,10 @@ def main() -> None:
             "n_common_conditions": g1.n_common_conditions,
         },
         "candidates": CANDIDATES,
+        # What each swept variant actually IS — DAC's `z` is quantized, EnCodec's is
+        # not (S2/F7). The sweep list itself is frozen: `dac44k:enc` is in REAL_SPECS
+        # but NOT a Gate-1 candidate (D2).
+        "candidate_semantics": candidate_semantics(CANDIDATES),
         "min_test_groups": MIN_TEST_GROUPS,
         "caveats": [
             "winner NOT confirmed on a held-out split (confirmation split unimplemented) - do not declare Gate 1 passed from this run alone",

@@ -25,7 +25,7 @@ from pilot0.corpus.manifest import renderable_rows
 from pilot0.probes.dataset import CLEAN, build_probe_data
 from pilot0.probes.run import ENERGY, FLOOR, common_conditions
 from pilot0.provenance import is_fake, provenance
-from pilot0.seam.registry import make_encoder
+from pilot0.seam.registry import candidate_semantics, make_encoder
 from pilot0.serialize import to_jsonable
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -232,6 +232,7 @@ def main(argv: list[str] | None = None) -> None:
     payload = {
         "candidates": [list(c) for c in run],
         "all_candidates": [list(c) for c in ALL_CANDIDATES],
+        "candidate_semantics": candidate_semantics(ALL_CANDIDATES),  # what each variant IS (S2/D1)
         "n_common_conditions": len(common),
         "reduction_ks": list(KS),
         "n_features": {k: b["n_features"] for k, b in blocks.items()},

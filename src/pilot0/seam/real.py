@@ -8,10 +8,25 @@ a `fake-*` encoder.
 The encode paths target the models' documented APIs and are marked BRINGUP:
 validated on the GPU box via docs/GPU_BRINGUP.md (shape + fake/real parity), NOT
 on the Mac. Wired: EnCodec (continuous `z` + RVQ depths), WavLM (per layer, with
-the model's own feature-extractor normalization), DAC (continuous `z` + RVQ
-depths), Mimi (semantic vs acoustic streams — the §2.3 headline split). The
-`LatentResult` contract is unchanged, so the pipeline is drop-in the moment the
-box is reassembled.
+the model's own feature-extractor normalization), DAC (`enc` = continuous encoder
+output, `z` = QUANTIZED, + RVQ depths), Mimi (semantic vs acoustic streams — the
+§2.3 headline split). The `LatentResult` contract is unchanged, so the pipeline
+is drop-in the moment the box is reassembled.
+
+`z` is NOT one thing across the two codec families: EnCodec's is the continuous
+pre-quantization encoder output, DAC's is the quantizer output, because
+`DAC.encode()` overwrites its `z` in place (dac/model/dac.py:243–247). Each
+variant's claim lives in `seam.registry.REAL_SPECS[...]["semantics"]` (S2/F7).
+
+Section map (file order):
+  _assert_depth_available   fail loud when a checkpoint has fewer codebooks than d{k}
+  RealBackendUnavailable    raised when torch is missing
+  RealCodecEncoder.__init__ spec fields + the torch gate
+  RealCodecEncoder._ensure  lazy per-family model load
+  RealCodecEncoder._to_native   soxr resample to the model's rate
+  RealCodecEncoder.encode   public entry: dispatch by family, pack every variant
+  RealCodecEncoder._encode_encodec / _encode_wavlm / _encode_dac / _encode_mimi
+  RealCodecEncoder._pack    frames -> LatentResult with the honest sidecar meta
 """
 
 from __future__ import annotations
@@ -21,8 +36,9 @@ import numpy as np
 from .base import LatentResult, measure_frame_rate
 
 _LAYER_MAP = {"l1": 1, "l6": 6, "l12": 12, "l18": 18, "l24": 24}
-# RVQ-depth variant name -> number of leading codebooks summed. `z` = continuous
-# pre-quant latent (no quantization). Shared by the residual-codebook families.
+# RVQ-depth variant name -> number of leading codebooks summed. Shared by the
+# residual-codebook families. The unquantized point is `z` for EnCodec and `enc`
+# for DAC — see the module docstring; `d{k}` is quantized either way.
 _RVQ_DEPTHS = {"d1": 1, "d2": 2, "d4": 4, "d8": 8}
 
 
@@ -139,9 +155,9 @@ class RealCodecEncoder:
             for v, frames in by_variant.items()
         }
 
-    # A residual codec exposes `z` (continuous pre-quant) and `d{k}` = the sum of
-    # the first k RVQ codebook embeddings. Both live in the same [T, D] embedding
-    # space; only the requested variants are materialised.
+    # EnCodec exposes `z` (continuous pre-quant, straight off the encoder) and
+    # `d{k}` = the sum of the first k RVQ codebook embeddings. Both live in the same
+    # [T, D] embedding space; only the requested variants are materialised.
     def _encode_encodec(self, wav_n: np.ndarray) -> dict[str, np.ndarray]:
         import torch
 
@@ -167,21 +183,31 @@ class RealCodecEncoder:
         hs = self._model(iv, attention_mask=am, output_hidden_states=True).hidden_states  # tuple[[1, T', D]]
         return {v: hs[_LAYER_MAP[v]][0].float().cpu().numpy() for v in self.variants}
 
+    # DAC differs from EnCodec at exactly one point: `DAC.encode()` REBINDS its `z` to
+    # the quantizer output before returning (dac/model/dac.py:243–247), so `z` here is
+    # quantized over all of the model's codebooks — not a pre-quant latent, and not
+    # labelled `d9` either, since the codebook count is asserted nowhere (F7). The true
+    # continuous point is `enc`, straight off `model.encoder`, in the same [T, D] space.
+    # (`quantizer.latents` is the low-dim per-codebook projection — a different space.)
     def _encode_dac(self, wav_n: np.ndarray) -> dict[str, np.ndarray]:
         import torch
 
         x = torch.from_numpy(wav_n).to(self._device)[None, None, :]
         x = self._model.preprocess(x, self.native_sr)
-        z, codes, _, _, _ = self._model.encode(x)  # z:[1, D, T'] quantized, codes:[1, n_q, T']
         out: dict[str, np.ndarray] = {}
-        if "z" in self.variants:
-            out["z"] = z[0].transpose(0, 1).float().cpu().numpy()
+        if "enc" in self.variants:
+            e = self._model.encoder(x)  # [1, D, T'] continuous, pre-quant
+            out["enc"] = e[0].transpose(0, 1).float().cpu().numpy()
         depths = [v for v in self.variants if v in _RVQ_DEPTHS]
-        if depths:
-            _assert_depth_available(codes.shape[1], depths, self.checkpoint)  # else d8 silently becomes d6 (W B2)
-            for v in depths:
-                zq = self._model.quantizer.from_codes(codes[:, : _RVQ_DEPTHS[v]])[0]  # [1, D, T']
-                out[v] = zq[0].transpose(0, 1).float().cpu().numpy()
+        if "z" in self.variants or depths:
+            z, codes, _, _, _ = self._model.encode(x)  # z:[1, D, T'] QUANTIZED, codes:[1, n_q, T']
+            if "z" in self.variants:
+                out["z"] = z[0].transpose(0, 1).float().cpu().numpy()
+            if depths:
+                _assert_depth_available(codes.shape[1], depths, self.checkpoint)  # else d8 silently becomes d6 (W B2)
+                for v in depths:
+                    zq = self._model.quantizer.from_codes(codes[:, : _RVQ_DEPTHS[v]])[0]  # [1, D, T']
+                    out[v] = zq[0].transpose(0, 1).float().cpu().numpy()
         return out
 
     # Mimi's headline split (§2.3): codebook 0 is the WavLM-distilled *semantic*

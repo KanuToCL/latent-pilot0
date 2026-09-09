@@ -26,6 +26,7 @@ from ..encode.pipeline import encode_corpus
 from ..ood.run import run_ood_teaser
 from ..quality.run import run_gate2
 from ..quality.scores import Scores
+from ..seam.registry import candidate_semantics
 from ..serialize import write_json
 
 CANDIDATES = [("fake-encodec24k", "z"), ("fake-wavlm", "l12")]
@@ -111,7 +112,10 @@ def _provenance(candidates, n_sources: int, sr: int) -> dict:
         note="Synthetic ViSQOL/MOS + fabricated NR incumbents on this seam; the "
              "scientific run is the GPU box (docs/GPU_BRINGUP.md).",
         n_sources=n_sources, sample_rate=sr,
-        candidates=[f"{n}/{v}" for n, v in candidates])
+        candidates=[f"{n}/{v}" for n, v in candidates],
+        # AM8 anchors this at :57, which is inside `_gate2_json`; the candidate metadata
+        # this writer actually emits is the provenance block, so the semantics ride here.
+        candidate_semantics=candidate_semantics(candidates))
 
 
 def write_artifacts(

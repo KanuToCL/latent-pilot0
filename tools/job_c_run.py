@@ -29,6 +29,7 @@ from pilot0.combos.grid import COMBO_PAIRS, COMBO_SEVERITIES, combo_label
 from pilot0.combos.run import analyze_combos
 from pilot0.probes.run import FLOOR
 from pilot0.provenance import is_fake, provenance
+from pilot0.seam.registry import variant_semantics
 from pilot0.serialize import to_jsonable
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -178,6 +179,7 @@ def main() -> None:
             "key": key_of(name, variant),
             "name": name,
             "variant": variant,
+            "semantics": variant_semantics(name, variant),  # what this latent IS (S2/D1/AM8)
             "additivity": additivity_dict(rep.additivity[lib_key]),
             "transfer": transfer_dict(rep.transfer[lib_key]),
         }

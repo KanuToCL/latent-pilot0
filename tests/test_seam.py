@@ -13,8 +13,13 @@ from pilot0.seam.base import (
     pool_max,
     pool_mean_std,
 )
-from pilot0.seam.real import RealBackendUnavailable
-from pilot0.seam.registry import REAL_SPECS, available_encoders, make_encoder
+from pilot0.seam.real import RealBackendUnavailable, RealCodecEncoder
+from pilot0.seam.registry import (
+    REAL_SPECS,
+    available_encoders,
+    make_encoder,
+    variant_semantics,
+)
 
 SR = 48000
 
@@ -137,3 +142,76 @@ def test_real_backend_guarded_without_torch():
             make_encoder("encodec24k")
     else:
         pytest.skip("torch present — real backend constructs (validated on the box)")
+
+
+# --- variant semantics (S2: a label must say what the latent IS) ----------------
+
+
+def test_dac_z_is_labelled_quantized_and_encodec_z_pre_quant():
+    """The S2 finding: both families call a variant `z`, but DAC's is the QUANTIZER
+    output and EnCodec's is the continuous encoder output. The lookup must not blur
+    them — a drifted string here is what let "pre-quant z" travel into the papers."""
+    assert "quantiz" in variant_semantics("dac44k", "z")
+    assert "pre-quant" not in variant_semantics("dac44k", "z")
+    assert "pre-quantization" in variant_semantics("encodec24k", "z")
+    assert "pre-quantization" in variant_semantics("dac44k", "enc")
+
+
+def test_variant_semantics_covers_every_declared_variant_and_the_baselines():
+    for base, spec in REAL_SPECS.items():
+        for v in spec["variants"]:
+            assert variant_semantics(base, v)
+            assert variant_semantics(f"fake-{base}", v) == variant_semantics(base, v)
+    assert variant_semantics("logmel", "mel")
+    assert variant_semantics("energy", "energy")  # ALL_CANDIDATES carries the floor
+    with pytest.raises(KeyError):
+        variant_semantics("dac44k", "l12")
+    with pytest.raises(KeyError):
+        variant_semantics("nonsense", "z")
+
+
+# --- DAC enc vs z (S2/F7) ------------------------------------------------------
+
+
+def test_fake_dac_emits_the_enc_variant():
+    enc = make_encoder("fake-dac44k")
+    assert "enc" in enc.variants
+    assert set(enc.encode(_wav(11), SR)) == set(enc.variants)
+
+
+class _StubDac:
+    """Minimal structural stand-in for `dac.DAC`: `encoder(x)` is the continuous
+    pre-quantization output; `encode(x)[0]` is the QUANTIZER output (the installed
+    model overwrites `z` at dac/model/dac.py:243–247), so the two must differ."""
+
+    def __init__(self, torch, d: int = 6, t: int = 5) -> None:
+        self._enc = torch.arange(d * t, dtype=torch.float32).reshape(1, d, t)
+        self._q = self._enc + 1.0  # quantized ≠ continuous, same [1, D, T]
+        self._codes = torch.zeros(1, 9, t, dtype=torch.long)
+        self.quantizer = self
+
+    def preprocess(self, x, sr):
+        return x
+
+    def encoder(self, x):
+        return self._enc
+
+    def encode(self, x):
+        return self._q, self._codes, None, None, None
+
+    def from_codes(self, codes):
+        return (self._q,)
+
+
+def test_dac_enc_is_the_encoder_output_and_z_is_the_quantized_one():
+    torch = pytest.importorskip("torch")
+    e = RealCodecEncoder(name="dac44k", family="dac", native_sr=44100, latent_dim=1024,
+                         checkpoint="descript/dac_44khz", variants=("enc", "z", "d1"))
+    e._model, e._device = _StubDac(torch), "cpu"
+    out = e.encode(np.zeros(44100, dtype=np.float32), 44100)
+
+    assert set(out) == {"enc", "z", "d1"}
+    assert out["enc"].frames.shape == out["z"].frames.shape  # same embedding space (F7)
+    assert not np.allclose(out["enc"].frames, out["z"].frames)  # z is quantized, enc is not
+    assert np.allclose(out["enc"].frames, e._model._enc[0].T.numpy())
+    assert np.allclose(out["z"].frames, e._model._q[0].T.numpy())

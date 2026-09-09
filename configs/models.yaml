@@ -1,6 +1,8 @@
 # Mirror of REAL_SPECS (src/pilot0/seam/registry.py). tests/test_config.py
 # asserts they never drift. latent_dim values are nominal stand-ins for Mac-side
 # shape parity and are reconciled against the true checkpoints at bring-up (D6).
+# `semantics` says what each variant's latent IS: `z` does not mean the same thing
+# in both codec families (S2/F7), so the string is compared by the drift guard too.
 encoders:
   encodec24k:
     family: encodec
@@ -8,21 +10,43 @@ encoders:
     latent_dim: 128
     checkpoint: facebook/encodec_24khz
     variants: [z, d1, d2, d4, d8]
+    semantics:
+      z: continuous pre-quantization encoder output
+      d1: dequantized sum of the first 1 RVQ codebook embeddings
+      d2: dequantized sum of the first 2 RVQ codebook embeddings
+      d4: dequantized sum of the first 4 RVQ codebook embeddings
+      d8: dequantized sum of the first 8 RVQ codebook embeddings
   wavlm:
     family: wavlm
     native_sr: 16000
     latent_dim: 1024
     checkpoint: microsoft/wavlm-large
     variants: [l1, l6, l12, l18, l24]
+    semantics:
+      l1: transformer hidden state, layer 1
+      l6: transformer hidden state, layer 6
+      l12: transformer hidden state, layer 12
+      l18: transformer hidden state, layer 18
+      l24: transformer hidden state, layer 24
   dac44k:
     family: dac
     native_sr: 44100
     latent_dim: 1024
     checkpoint: descript/dac_44khz
-    variants: [z, d1, d2, d4, d8]
+    variants: [z, d1, d2, d4, d8, enc]
+    semantics:
+      z: "quantized: DAC.encode() output, sum over all of the model's codebooks"
+      enc: continuous pre-quantization encoder output (model.encoder)
+      d1: dequantized sum of the first 1 RVQ codebook embeddings
+      d2: dequantized sum of the first 2 RVQ codebook embeddings
+      d4: dequantized sum of the first 4 RVQ codebook embeddings
+      d8: dequantized sum of the first 8 RVQ codebook embeddings
   mimi:
     family: mimi
     native_sr: 24000
     latent_dim: 512
     checkpoint: kyutai/mimi
     variants: [semantic, acoustic]
+    semantics:
+      semantic: dequantized codebook 0, the WavLM-distilled semantic stream
+      acoustic: dequantized residual codebooks 1.., the acoustic stream

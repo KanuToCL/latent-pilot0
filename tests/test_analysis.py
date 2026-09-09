@@ -61,7 +61,9 @@ def _map_fields(d: ProbeData):
 
 def test_rvq_depth_variants_declared_and_shared_across_families():
     assert REAL_SPECS["encodec24k"]["variants"] == ("z", "d1", "d2", "d4", "d8")
-    assert REAL_SPECS["dac44k"]["variants"] == ("z", "d1", "d2", "d4", "d8")
+    # DAC's `z` is the QUANTIZER output (F7), so the true pre-quant point is `enc` —
+    # a sixth variant, appended so the banked `dac44k/z/*.npz` keep their key (D1).
+    assert REAL_SPECS["dac44k"]["variants"] == ("z", "d1", "d2", "d4", "d8", "enc")
     assert WIRED_FAMILIES == {"encodec", "wavlm", "dac", "mimi"}
 
 
