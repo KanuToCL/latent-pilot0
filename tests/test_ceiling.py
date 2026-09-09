@@ -14,6 +14,9 @@ them (F21), so it is a cross-check only.
 
 from __future__ import annotations
 
+import pathlib
+import sys
+
 import numpy as np
 import pytest
 from scipy.stats import spearmanr
@@ -26,6 +29,12 @@ from pilot0.probes.ceiling import (
 )
 from pilot0.probes.gate1 import SEVERITY_MIN_FAMILIES, SEVERITY_SRCC_MIN
 from pilot0.probes.metrics import spearman_ceiling, spearman_ceiling_balanced
+
+# The reanalysis runner lives in tools/, which is not on the test path by default.
+_TOOLS = pathlib.Path(__file__).resolve().parents[1] / "tools"
+if str(_TOOLS) not in sys.path:
+    sys.path.insert(0, str(_TOOLS))
+from ceiling_run import ci_excursion_caveat  # noqa: E402
 
 FAMS = ("noise", "hiss", "hum", "clip", "bandlimit", "mp3", "dropout")
 
@@ -198,3 +207,39 @@ def test_candidate_summary_separates_absolute_clears_from_margin_passes():
     assert s.margin_passes == 3  # ... only three survive the energy margin
     assert s.feasible_families == 3
     assert s.margin_passes <= s.feasible_families  # the ceiling bounds the criterion
+
+
+# --- the CI-excursion caveat is read off the report, not transcribed ----------
+
+
+def test_the_excursion_caveat_names_exactly_the_families_that_excurse():
+    """`energy_hi > rho_max` on noise and band-limit only. The caveat used to hardcode
+    "noise +1.6e-5, bandlimit +3.1e-5", which is a statement about one past gate run;
+    the families and margins must come from the report being written."""
+    grid = _grid()
+    ceil = family_ceilings(_report(), _manifest(grid), grid)
+    note = ci_excursion_caveat(ceil)
+    assert "noise +1.6e-05" in note
+    assert "bandlimit +3.2e-05" in note
+    for absent in ("hiss", "hum", "clip", "mp3", "dropout"):
+        assert absent not in note
+    assert "largest excursion is 3.2e-05" in note  # the bigger of the two, not a guess
+
+
+def test_no_caveat_at_all_when_no_family_excurses():
+    """A gate run whose energy control sits below every ceiling must not carry a caveat
+    describing an excursion that did not happen."""
+    grid = _grid()
+    rep = _report()
+    rep["energy"]["severity"] = _severity_block({f: 0.5 for f in FAMS})
+    assert ci_excursion_caveat(family_ceilings(rep, _manifest(grid), grid)) is None
+
+
+def test_a_family_with_no_finite_ceiling_is_not_reported_as_an_excursion():
+    """A one-level ladder has a nan rho_max; nan comparisons are False, so it drops out
+    rather than printing "family +nan"."""
+    grid = {("clean", 0), ("noise", 3)}
+    rep = _report()
+    ceil = family_ceilings(rep, _manifest(grid), grid)
+    assert np.isnan(ceil["noise"].rho_max)
+    assert ci_excursion_caveat(ceil) is None

@@ -49,10 +49,12 @@ a weaker question, about the stimulus.
 ## 4. Rate-dependent gain (F20 / AM7)
 
 The required gain depends on the render rate, because the degradation does.
-Measured: bandlimit/5 needs **+1.14 / +0.56 / +0.31 dB** at 44.1 / 24 / 16 kHz
+**Measured on one −23 LUFS source (Physics elder, 2026-09-09)** — a single-clip
+illustration of the direction and rough size of the effect, not a corpus statistic and
+not a tolerance: bandlimit/5 needs **+1.14 / +0.56 / +0.31 dB** at 44.1 / 24 / 16 kHz
 (0.83 dB spread); mp3/5 spreads 0.71 dB, hiss/5 0.19 dB; the same master's absolute
 LUFS across rates spans 1.0 LU. So the arm is **per-rate**, and the spread must be
-recorded per cell in its report. The real fix for cross-rate comparability is the
+recorded per cell in its report — measured over the corpus, since these numbers are not. The real fix for cross-rate comparability is the
 canonical-bandwidth arm (S3), out of scope here.
 
 ## 5. Threading sites for the follow-up (F14/F16)

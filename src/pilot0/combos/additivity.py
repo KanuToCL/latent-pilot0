@@ -43,6 +43,8 @@ a plumbing check, not a result.
 
 Section map (file order):
   PairAdditivity / AdditivityResult   the per-cell record and its container
+  PairAdditivity.evaluable    the ONE evaluability predicate (`reason is None`)
+  AdditivityResult.mean_cosine / .n_cells_averaged   the summary and its population size
   _cosine                     nan-guarded cosine of two vectors
   _additivity_cosine          role centroids on a resample, then the cosine
   _stack                      the four role blocks in a fixed order (clean, a, b, ab)
@@ -95,15 +97,37 @@ class PairAdditivity:
     # "no_common_source" (no clip carries all four roles) | "duplicate_rows" (a role
     # holds more than one row for some source, so the four cannot be paired)
 
+    @property
+    def evaluable(self) -> bool:
+        """THE evaluability predicate — the runner, the printed summary and
+        `AdditivityResult.mean_cosine` all read this one, so a cell cannot be evaluable
+        for one reader and skipped by another. It is `reason is None`, NOT
+        `n_sources > 0`: a `duplicate_rows` cell reports the sources it paired and still
+        carries no statistics."""
+        return self.reason is None
+
 
 @dataclass(frozen=True)
 class AdditivityResult:
     by_cell: dict[tuple[str, int], PairAdditivity]
 
+    def _averaged_cosines(self) -> list[float]:
+        """The population `mean_cosine` summarises: `evaluable` cells whose RAW cosine
+        point is finite. The finiteness guard is not a second evaluability test — it
+        drops only a measured nan (every resample missing a role), which would otherwise
+        make the whole mean nan. `n_cells_averaged` publishes how many survived."""
+        return [c.cosine.point for c in self.by_cell.values()
+                if c.evaluable and np.isfinite(c.cosine.point)]
+
     def mean_cosine(self) -> float:
         """Mean of the per-cell RAW cosines (a summary, not itself a cosine)."""
-        vals = [c.cosine.point for c in self.by_cell.values() if np.isfinite(c.cosine.point)]
+        vals = self._averaged_cosines()
         return float(np.mean(vals)) if vals else float("nan")
+
+    def n_cells_averaged(self) -> int:
+        """How many cells `mean_cosine` actually averaged — a mean over 3 of 9 cells and
+        a mean over 9 of 9 are different claims, and the report must say which."""
+        return len(self._averaged_cosines())
 
 
 def _cosine(u: np.ndarray, v: np.ndarray) -> float:

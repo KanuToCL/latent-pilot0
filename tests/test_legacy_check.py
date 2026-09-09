@@ -11,10 +11,12 @@ pins the corrected reading.
 
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 
 from pilot0.combos.additivity import AdditivityResult, PairAdditivity
-from pilot0.combos.legacy_check import check_legacy, is_unevaluable, same_value
+from pilot0.combos.legacy_check import check_legacy, fingerprint_ok, is_unevaluable, same_value
 from pilot0.combos.row_scan import scan_duplicate_rows
 from pilot0.probes.metrics import Estimate
 
@@ -61,6 +63,32 @@ def test_same_value_matches_nan_to_json_null_but_not_to_a_number():
 def test_same_value_is_bit_identical_not_approximate():
     assert same_value(0.9797979797979798, 0.9797979797979798) is True
     assert same_value(0.9797979797979798, 0.9797979797979797) is False  # one ulp apart
+
+
+def test_same_value_compares_two_absent_numbers_without_raising():
+    """`np.isnan(None)` is a TypeError. Both legacy JSON and a nan cosine can be absent,
+    so the predicate must answer for None/None rather than make the caller pre-screen."""
+    assert same_value(None, None) is True
+    assert same_value(None, NAN) is True
+    assert same_value(None, 0.9) is False
+
+
+# --- the anchor's fingerprint (C4) ---------------------------------------------------
+
+
+def test_fingerprint_ok_accepts_exactly_the_hashed_bytes():
+    data = b'{"by_candidate": {}}'
+    digest = hashlib.sha256(data).hexdigest()
+    assert fingerprint_ok(data, digest) is True
+    assert fingerprint_ok(data, digest.upper()) is True  # hex case is not evidence
+
+
+def test_fingerprint_ok_rejects_a_single_changed_byte():
+    data = b'{"by_candidate": {}}'
+    digest = hashlib.sha256(data).hexdigest()
+    assert fingerprint_ok(data + b" ", digest) is False  # whitespace is a different file
+    assert fingerprint_ok(b"", digest) is False
+    assert fingerprint_ok(data, "0" * 64) is False
 
 
 # --- the three buckets --------------------------------------------------------------
@@ -119,15 +147,43 @@ def test_cells_unevaluable_on_both_sides_are_not_counted_as_differing():
     assert got.n_cells_identical == 1
 
 
-def test_a_cell_that_lost_its_number_is_not_excused_as_unevaluable():
-    """Unevaluable NOW but evaluable in the legacy report is a real regression: it must
-    stay in `differing` (or fail outright), never vanish into the third bucket."""
+@pytest.mark.parametrize("identical", [True, False])
+def test_a_cell_that_lost_its_number_fails_the_guard_whatever_the_rows(identical):
+    """Unevaluable NOW while the legacy report has a number is a regression: the
+    reanalysis went blind where the anchor could see. Reselected rows do not excuse it —
+    they explain a CHANGED cosine, never an ABSENT one — so it is a mismatch (`ok`
+    False), not the `differing` bucket and not the both-unevaluable one."""
     got = _run([_pa("noise+clip", 3, (0.91, 0.88, 0.94), identical=True),
-                _pa("hum+mp3", 3, None, identical=False, n_sources=0)],
+                _pa("hum+mp3", 3, None, identical=identical, n_sources=0)],
                [_legacy("noise+clip", 3, (0.91, 0.88, 0.94)),
                 _legacy("hum+mp3", 3, (0.77, 0.70, 0.80))])
+    assert not got.ok
     assert got.n_cells_both_unevaluable == 0
-    assert got.n_cells_differing == 1
+    assert got.n_cells_differing == 0
+    assert len(got.mismatches) == 1
+    assert "hum+mp3" in got.mismatches[0] and "unevaluable now" in got.mismatches[0]
+    assert "0.77" in got.mismatches[0]  # the legacy point it lost
+
+
+def test_a_cell_the_legacy_report_could_not_evaluate_either_is_still_the_third_bucket():
+    """The converse of the regression above: only the NEW side going blind is a failure.
+    A number that never existed on either side stays in `n_cells_both_unevaluable`."""
+    got = _run([_pa("noise+clip", 3, (0.91, 0.88, 0.94), identical=True),
+                _pa("hiss+bandlimit", 2, None, identical=False, n_sources=0)],
+               [_legacy("noise+clip", 3, (0.91, 0.88, 0.94)),
+                _legacy("hiss+bandlimit", 2, None)])
+    assert got.ok and got.n_cells_both_unevaluable == 1
+
+
+def test_a_candidate_absent_from_the_legacy_cells_names_itself_in_the_error():
+    """A bare KeyError here reads as a dict bug. The guard is handed its legacy map by
+    the caller, so a missing candidate is a caller error and must say which one."""
+    results = {"dac44k/enc": AdditivityResult(
+        by_cell={("noise+clip", 3): _pa("noise+clip", 3, (0.9, 0.8, 1.0), identical=True)})}
+    with pytest.raises(KeyError) as excinfo:
+        check_legacy(results, {"logmel/mel": {}})
+    assert "dac44k/enc" in str(excinfo.value)
+    assert "logmel/mel" in str(excinfo.value)  # and what it WAS given
 
 
 def test_no_identical_cell_anywhere_fails_even_with_zero_mismatches():

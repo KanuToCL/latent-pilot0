@@ -25,15 +25,22 @@ import sys
 import numpy as np
 import pytest
 
-from pilot0.combos.additivity import _cosine, additivity
+from pilot0.combos.additivity import AdditivityResult, PairAdditivity, _cosine, additivity
 from pilot0.combos.dataset import ComboData
 from pilot0.probes.dataset import ProbeData
+from pilot0.probes.metrics import Estimate
 from pilot0.release.artifacts import _additivity_json
 
 # The second serializer lives in tools/, which is not on the test path by default.
 _TOOLS = pathlib.Path(__file__).resolve().parents[1] / "tools"
 if str(_TOOLS) not in sys.path:
     sys.path.insert(0, str(_TOOLS))
+from additivity_run import (  # noqa: E402
+    LEGACY_SHA256,
+    duplicate_row_cells,
+    read_anchor,
+    reasons_note,
+)
 from job_c_run import additivity_dict  # noqa: E402
 
 PAIR, SEV = "noise+clip", 3
@@ -228,6 +235,120 @@ def test_n_sources_is_not_the_evaluability_test():
     c = additivity(probe, combo, n_boot=N_BOOT).by_cell[(PAIR, SEV)]
     assert c.n_sources > 0  # truthy ...
     assert c.reason is not None and np.isnan(c.cosine.point)  # ... but nothing to read
+    assert c.evaluable is False  # ... and the one predicate every reader uses says so
+
+
+# --- one evaluability predicate, and the size of the mean's population -------------
+
+
+def _synthetic(pair: str, sev: int, point, reason: str | None = None) -> PairAdditivity:
+    """A PairAdditivity built directly, so the predicate can be tested against cells no
+    fabricated dataset conveniently produces (evaluable but nan, unevaluable but numeric)."""
+    nan = float("nan")
+    est = Estimate(nan if point is None else point, nan, nan)
+    return PairAdditivity(pair, sev, est, Estimate(nan, nan, nan), nan, nan, nan, nan, nan,
+                          nan, Estimate(nan, nan, nan), Estimate(nan, nan, nan),
+                          4, 4, False, reason)
+
+
+def test_evaluable_is_reason_is_none_and_nothing_else():
+    assert _synthetic(PAIR, SEV, 0.9).evaluable is True
+    assert _synthetic(PAIR, SEV, None).evaluable is True  # a MEASURED nan is evaluable
+    assert _synthetic(PAIR, SEV, None, "no_common_source").evaluable is False
+    assert _synthetic(PAIR, SEV, 0.9, "duplicate_rows").evaluable is False
+
+
+def test_mean_cosine_skips_unevaluable_cells_and_reports_how_many_it_averaged():
+    """The mean is over the evaluable cells only, and the report must say how many that
+    was: a mean of 2 cells and a mean of 4 are different claims behind one number."""
+    res = AdditivityResult(by_cell={
+        ("noise+clip", 3): _synthetic("noise+clip", 3, 1.0),
+        ("hum+mp3", 3): _synthetic("hum+mp3", 3, 0.8),
+        ("hiss+bandlimit", 2): _synthetic("hiss+bandlimit", 2, None, "no_common_source"),
+        ("hiss+bandlimit", 3): _synthetic("hiss+bandlimit", 3, 0.2, "duplicate_rows"),
+    })
+    assert res.mean_cosine() == pytest.approx(0.9)  # (1.0 + 0.8) / 2, not / 3 and not / 4
+    assert res.n_cells_averaged() == 2
+
+
+def test_an_evaluable_cell_whose_cosine_landed_on_nan_does_not_poison_the_mean():
+    """`_additivity_cosine` returns nan when a resample misses a role, so an evaluable
+    cell can still carry a nan point. It is excluded from the mean and from the count —
+    otherwise one such cell turns a published mean_cosine into nan."""
+    res = AdditivityResult(by_cell={
+        ("noise+clip", 3): _synthetic("noise+clip", 3, 0.5),
+        ("hum+mp3", 3): _synthetic("hum+mp3", 3, None),  # evaluable, measured nan
+    })
+    assert res.mean_cosine() == pytest.approx(0.5)
+    assert res.n_cells_averaged() == 1
+
+
+def test_mean_cosine_of_nothing_evaluable_is_nan_over_zero_cells():
+    res = AdditivityResult(by_cell={
+        ("hiss+bandlimit", 2): _synthetic("hiss+bandlimit", 2, None, "no_common_source")})
+    assert np.isnan(res.mean_cosine())
+    assert res.n_cells_averaged() == 0
+
+
+# --- the runner's table and its exit code (tools/additivity_run.py) ----------------
+
+
+def test_every_unevaluable_cell_in_a_row_names_its_reason_not_just_the_mid_one():
+    """The cosine columns print "n/a" both for a measured nan and for a cell there was
+    nothing to measure in. Only the MID cell used to explain itself, so a row whose
+    sev-2 cell was unevaluable said nothing about it at all."""
+    cells = {2: _synthetic(PAIR, 2, None, "no_common_source"),
+             3: _synthetic(PAIR, 3, 0.99),
+             4: _synthetic(PAIR, 4, None, "duplicate_rows")}
+    note = reasons_note(cells)
+    assert note == "  <- @2: no_common_source, @4: duplicate_rows"
+
+
+def test_a_row_of_evaluable_cells_carries_no_note():
+    assert reasons_note({2: _synthetic(PAIR, 2, 0.9), 3: _synthetic(PAIR, 3, 0.8)}) == ""
+
+
+def test_a_severity_absent_from_the_grid_is_not_a_reason():
+    """`print_summary` passes None for a severity this candidate has no cell at — that is
+    a gap in the grid, not an unevaluable measurement, and must not be reported as one."""
+    assert reasons_note({2: None, 3: _synthetic(PAIR, 3, 0.9)}) == ""
+
+
+def test_duplicate_row_cells_lists_only_the_guarded_cells_and_names_them():
+    """A fired duplicate-row guard means those cells carry no statistics at all. The
+    runner exits non-zero listing them, so the list must name candidate, pair and
+    severity — and must not sweep in cells that are unevaluable for other reasons."""
+    results = {
+        "encodec24k/z": AdditivityResult(by_cell={
+            ("noise+clip", 3): _synthetic("noise+clip", 3, 0.99),
+            ("hum+mp3", 4): _synthetic("hum+mp3", 4, None, "duplicate_rows")}),
+        "logmel/mel": AdditivityResult(by_cell={
+            ("hiss+bandlimit", 2): _synthetic("hiss+bandlimit", 2, None, "no_common_source"),
+            ("noise+clip", 2): _synthetic("noise+clip", 2, None, "duplicate_rows")}),
+    }
+    assert duplicate_row_cells(results) == ["encodec24k:z hum+mp3@4", "logmel:mel noise+clip@2"]
+
+
+def test_duplicate_row_cells_is_empty_on_a_clean_batch():
+    """The real bank: `--scan-duplicates` finds 0, so the runner must exit 0 on it."""
+    results = {"logmel/mel": AdditivityResult(by_cell={
+        ("noise+clip", 3): _synthetic("noise+clip", 3, 0.99),
+        ("hiss+bandlimit", 2): _synthetic("hiss+bandlimit", 2, None, "no_common_source")})}
+    assert duplicate_row_cells(results) == []
+
+
+def test_the_anchor_refusal_names_the_audited_fingerprint(tmp_path):
+    """C4: a `combos_real.json` whose bytes are not the audited bytes is not the anchor
+    the corrections were written against, and the D3 guard refuses to use it as one."""
+    bad = tmp_path / "combos_real.json"
+    bad.write_text('{"by_candidate": {}}', encoding="utf-8")
+    with pytest.raises(SystemExit) as excinfo:
+        read_anchor(bad)
+    assert LEGACY_SHA256 in str(excinfo.value)
+
+    missing = tmp_path / "gone.json"
+    with pytest.raises(SystemExit, match="is missing"):
+        read_anchor(missing)
 
 
 # --- both serializers (AM2) ----------------------------------------------------

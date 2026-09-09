@@ -12,7 +12,14 @@
 # GROUP. D3 guard: on every cell where the two selections coincide
 # (`rows_identical`) the raw cosine must reproduce reports/combos_real.json
 # bit-for-bit, and the run FAILS if no cell is identical - that would mean the
-# reanalysis had silently changed the ground it stands on.
+# reanalysis had silently changed the ground it stands on. The anchor file is first
+# hashed against LEGACY_SHA256: an edited or regenerated combos_real.json is not the
+# file the corrections were written against and is refused as an anchor.
+#
+# The run also EXITS NON-ZERO when any cell was made unevaluable by additivity()'s
+# per-source row-count guard (`reason == "duplicate_rows"`). That fires only after the
+# report is written and the table printed - the numbers that were computed stay on disk
+# and readable, but the exit code refuses to call the pass clean.
 #
 # `--scan-duplicates` is a separate, seconds-long mode that never loads a latent: it
 # asks only whether additivity()'s per-source row-count guard could fire anywhere in
@@ -23,12 +30,15 @@
 #   write_atomic(path, payload)     - tmp + os.replace
 #   estimate_dict(e)                - Estimate -> {point, lo, hi}
 #   cell_dict(pa)                   - PairAdditivity -> report record
+#   read_anchor(path)               - combos_real.json text, refused on a bad fingerprint
 #   legacy_cells(path)              - combos_real.json -> check_legacy's input shape
 #   guard_or_abort(results, path)   - run the D3 guard, SystemExit on failure
+#   duplicate_row_cells(results)    - "key pair@sev" for every duplicate_rows cell
 #   probe_rows(manifest, sr)        - (family, severity, source) per probe row
 #   combo_rows(manifest, name, variant) - (pair, severity, source) per CACHED combo cell
 #   scan_duplicates()               - --scan-duplicates: print the scan, non-zero on a hit
 #   _f(x, width)                    - table cell formatter
+#   reasons_note(cells)             - "  <- @2: no_common_source" for a whole table row
 #   print_summary(results)          - the pair x severity x candidate table
 #   main()                          - full reanalysis -> reports/additivity_real.json
 import argparse
@@ -42,7 +52,7 @@ import numpy as np
 
 from job_b_run import CANDIDATES
 from pilot0.combos.grid import COMBO_PAIRS, COMBO_SEVERITIES, combo_label, combo_severities
-from pilot0.combos.legacy_check import check_legacy
+from pilot0.combos.legacy_check import check_legacy, fingerprint_ok
 from pilot0.combos.row_scan import scan_duplicate_rows
 from pilot0.combos.run import analyze_additivity
 from pilot0.corpus.manifest import renderable_rows
@@ -60,6 +70,15 @@ REPORTS = ROOT / "reports"
 
 ALL_CANDIDATES = [FLOOR, *CANDIDATES]
 MID = COMBO_SEVERITIES[len(COMBO_SEVERITIES) // 2]
+
+# sha256 of the reports/combos_real.json the science spot check audited and every
+# correction in docs/DECISIONS.md is anchored to. It lives here, next to the path it
+# guards, rather than in combos/legacy_check.py, which knows no report layout.
+# It pins the `60f761c`-era file BYTE for byte, so re-running its writer
+# (tools/job_c_run.py) will change the digest and `read_anchor` will refuse the result
+# - that is the guard working, not a corrupted file. Re-pin this constant deliberately,
+# in the same commit that regenerates the report, or the anchor stops meaning anything.
+LEGACY_SHA256 = "633a2cbf16df11652648cd8d79aa562b22da33cb2e7145b8305e8573593d2d60"
 
 CAVEATS = [
     "descriptive and IN-SAMPLE: every statistic here is fit on all rows and gates nothing",
@@ -98,13 +117,28 @@ def cell_dict(pa) -> dict:
     }
 
 
+def read_anchor(legacy_path: Path) -> str:
+    """The D3 anchor's text, refused unless its bytes hash to LEGACY_SHA256.
+
+    A `combos_real.json` that has been edited or regenerated is not the file the audit
+    read and the corrections were written against; anchoring a reanalysis to it would
+    verify nothing while looking exactly like a pass. `fingerprint_ok` is the pure
+    predicate (tested in tests/test_legacy_check.py); the refusal is this run's policy."""
+    if not legacy_path.exists():
+        raise SystemExit(f"ABORT: {legacy_path} is missing - the D3 regression guard cannot run")
+    data = legacy_path.read_bytes()
+    if not fingerprint_ok(data, LEGACY_SHA256):
+        raise SystemExit(f"ABORT (D3): {legacy_path} does not hash to the audited fingerprint "
+                         f"{LEGACY_SHA256} - it is not the anchor the corrections were "
+                         f"written against and will not be used as one")
+    return data.decode("utf-8")
+
+
 def legacy_cells(legacy_path: Path) -> dict:
     """combos_real.json -> `{candidate key: {(pair, severity): cell}}`, the shape
     `pilot0.combos.legacy_check.check_legacy` takes. Keys are spelled "name/variant"
     to match `analyze_additivity`'s result dict, not the report's "name:variant"."""
-    if not legacy_path.exists():
-        raise SystemExit(f"ABORT: {legacy_path} is missing - the D3 regression guard cannot run")
-    legacy = json.loads(legacy_path.read_text(encoding="utf-8"))["by_candidate"]
+    legacy = json.loads(read_anchor(legacy_path))["by_candidate"]
     out = {}
     for name, variant in ALL_CANDIDATES:
         cells = legacy[key_of(name, variant)]["additivity"]["by_cell"]
@@ -119,6 +153,16 @@ def guard_or_abort(results: dict, legacy_path: Path) -> dict:
     if not check.ok:
         raise SystemExit(f"ABORT (D3): {check.failure}")
     return check.as_dict(legacy_path.name)
+
+
+def duplicate_row_cells(results: dict) -> list[str]:
+    """`"name:variant pair@severity"` for every cell additivity()'s per-source row-count
+    guard made unevaluable, sorted. Pure, so the exit message main() prints is testable
+    without a bank pass."""
+    return sorted(f"{key.replace('/', ':')} {pair}@{sev}"
+                  for key, res in results.items()
+                  for (pair, sev), pa in res.by_cell.items()
+                  if pa.reason == "duplicate_rows")
 
 
 # --- --scan-duplicates: is additivity()'s row-count guard reachable at all? ----------
@@ -172,6 +216,20 @@ def _f(x, width: int = 7) -> str:
     return f"{x:+.3f}".rjust(width)
 
 
+def reasons_note(cells: dict) -> str:
+    """`"  <- @2: no_common_source, @4: duplicate_rows"` for EVERY unevaluable cell in
+    one table row, "" when they all carry numbers.
+
+    `cells` maps severity to a PairAdditivity or None (severity not in this candidate's
+    grid at all). The cosine columns print "n/a" for a measured nan and for a cell there
+    was nothing to measure in, so without this a reader cannot tell them apart - and the
+    previous version answered only for the MID severity, leaving the other columns mute
+    even when their reason was the very thing that made the row interesting."""
+    bad = [f"@{s}: {c.reason}" for s, c in sorted(cells.items())
+           if c is not None and not c.evaluable]
+    return ("  <- " + ", ".join(bad)) if bad else ""
+
+
 HEADER = (f"{'candidate':14s} {'pair':15s} "
           + " ".join(f"{f'cos@{s}':>7s}" for s in COMBO_SEVERITIES)
           + f" | {f'cosA@{MID}':>7s} {f'cosB@{MID}':>7s} {f'cosLegs@{MID}':>9s} "
@@ -195,12 +253,13 @@ def print_summary(results: dict) -> None:
                 continue
             cos = " ".join(_f(None if cells[s] is None else cells[s].cosine.point) for s in COMBO_SEVERITIES)
             m = cells[MID]
+            # Every unevaluable cell in the row names its reason, at every severity, not
+            # just the MID one the detail columns come from: a reader must be able to
+            # tell "nothing to measure" from "measured nan", and both print "n/a".
+            why = reasons_note(cells)
             if m is None:
-                print(f"{head} {label:15s} {cos} | (no cell at severity {MID})")
+                print(f"{head} {label:15s} {cos} | (no cell at severity {MID}){why}")
             else:
-                # An unevaluable cell prints its reason rather than a row of "n/a": a
-                # reader must be able to tell "nothing to measure" from "measured nan".
-                why = "" if m.reason is None else f"  <- {m.reason}"
                 print(f"{head} {label:15s} {cos} | {_f(m.cos_to_a)} {_f(m.cos_to_b)} "
                       f"{_f(m.cos_legs, 9)} {_f(m.norm_ratio, 8)} {_f(m.r)} {_f(m.rel_residual, 8)} "
                       f"{_f(m.alpha.point)} {_f(m.beta.point)} {m.n_sources:5d} "
@@ -221,10 +280,11 @@ def main() -> None:
     t0 = time.time()
 
     def progress(key, res):
-        # `reason is None` is the evaluability test, NOT `n_sources`: a duplicate_rows
-        # cell reports the sources it paired and still carries no statistics.
-        n = sum(1 for c in res.by_cell.values() if c.reason is None)
-        skipped = Counter(c.reason for c in res.by_cell.values() if c.reason is not None)
+        # `PairAdditivity.evaluable` is THE evaluability test, shared with print_summary
+        # and mean_cosine. It is not `n_sources`: a duplicate_rows cell reports the
+        # sources it paired and still carries no statistics.
+        n = sum(1 for c in res.by_cell.values() if c.evaluable)
+        skipped = Counter(c.reason for c in res.by_cell.values() if not c.evaluable)
         why = ("  (" + ", ".join(f"{r}: {k}" for r, k in sorted(skipped.items())) + ")") if skipped else ""
         print(f"  {key:22s} {n}/{len(res.by_cell)} evaluable cells{why}  "
               f"({(time.time() - t0) / 60:.1f} min elapsed)", flush=True)
@@ -244,6 +304,9 @@ def main() -> None:
                 "key": key_of(n, v), "name": n, "variant": v,
                 "semantics": variant_semantics(n, v),
                 "mean_cosine": results[f"{n}/{v}"].mean_cosine(),
+                # How many cells that mean is over: a mean of 3 evaluable cells and a
+                # mean of 9 are different claims and the report must distinguish them.
+                "n_cells_averaged": results[f"{n}/{v}"].n_cells_averaged(),
                 "by_cell": [cell_dict(pa) for _cell, pa in sorted(results[f"{n}/{v}"].by_cell.items())],
             } for n, v in ALL_CANDIDATES
         },
@@ -259,6 +322,15 @@ def main() -> None:
     print(f"\nwrote {out}", flush=True)
     print_summary(results)
     print(f"\ntotal {(time.time() - t0) / 60:.1f} min", flush=True)
+
+    # Last, so the report is on disk and the table has been read: a fired duplicate-row
+    # guard means some cells carry no statistics at all, and the exit code has to say so.
+    dups = duplicate_row_cells(results)
+    if dups:
+        raise SystemExit(
+            f"FAIL: additivity()'s duplicate-row guard fired on {len(dups)} cell(s). "
+            f"{out} is written and its other cells are valid, but these have no "
+            f"statistics:\n  " + "\n  ".join(dups))
 
 
 if __name__ == "__main__":

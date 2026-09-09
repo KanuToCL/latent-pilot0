@@ -14,15 +14,23 @@ them as `n_cells_differing: 6`, which read as a discrepancy it never was. The ca
 `_empty_cell` hardcoding `rows_identical=False`, not a NaN comparison: `same_value`
 handles NaN correctly.
 
+Losing a number is NOT one of the three buckets. A cell the legacy report measured and
+this run cannot evaluate is a regression whichever rows were selected — the reanalysis
+went blind where the anchor could see — so it is recorded as a mismatch (`ok` False),
+never filed as "source pairing changed the selection". That branch is tested BEFORE
+`rows_identical`, which would otherwise swallow it into `n_cells_differing`.
+
 Section map (file order):
   is_unevaluable(value)                 - null / NaN cosine point, either side
   same_value(new, old)                  - bit-identical, JSON null == NaN
+  fingerprint_ok(data, expected_sha256) - the anchor file's bytes are the audited bytes
   LegacyCheck                           - counts + mismatches + `ok`
   check_legacy(results, legacy_cells)   - classify every cell into the three buckets
 """
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -38,11 +46,25 @@ def is_unevaluable(value) -> bool:
     return value is None or (isinstance(value, float) and bool(np.isnan(value)))
 
 
-def same_value(new: float, old) -> bool:
-    """Bit-identical, with JSON null (nan under to_jsonable) treated as nan."""
+def same_value(new, old) -> bool:
+    """Bit-identical, with JSON null (nan under to_jsonable) treated as nan.
+
+    Both sides go through `is_unevaluable`, so `same_value(None, None)` answers True
+    instead of raising: `np.isnan(None)` is a TypeError, and the guard must be able to
+    compare two absent numbers without the caller pre-screening them."""
     if is_unevaluable(old):
-        return bool(np.isnan(new))
+        return is_unevaluable(new)
     return new == old
+
+
+def fingerprint_ok(data: bytes, expected_sha256: str) -> bool:
+    """The anchor's bytes are the bytes the audit hashed, or they are not the anchor.
+
+    Pure: takes the content, never a path, and returns a verdict rather than aborting —
+    what a mismatch means is the caller's decision (`tools/additivity_run.py` refuses to
+    use the file as the D3 anchor). Comparison is case-insensitive on the expected digest
+    so a hex string copied from a report in either case still matches."""
+    return hashlib.sha256(data).hexdigest() == expected_sha256.strip().lower()
 
 
 @dataclass(frozen=True)
@@ -65,7 +87,7 @@ class LegacyCheck:
             return ("no cell has rows_identical - source pairing changed every selection, "
                     "so nothing anchors this reanalysis to the legacy report")
         if self.mismatches:
-            return ("legacy cosine not reproduced on identical rows:\n  "
+            return ("legacy cosine not reproduced:\n  "
                     + "\n  ".join(self.mismatches[:MAX_REPORTED_MISMATCHES]))
         return None
 
@@ -88,6 +110,10 @@ def check_legacy(results: dict, legacy_cells: dict) -> LegacyCheck:
     identical = differing = both_unevaluable = verified = 0
     mismatches: list[str] = []
     for key, res in results.items():
+        if key not in legacy_cells:
+            raise KeyError(
+                f"no legacy cells for candidate {key!r}: the D3 guard was handed "
+                f"{sorted(legacy_cells)} and cannot anchor a candidate absent from them")
         old_cells = legacy_cells[key]
         for cell, pa in sorted(res.by_cell.items()):
             old = old_cells.get(cell)
@@ -95,6 +121,13 @@ def check_legacy(results: dict, legacy_cells: dict) -> LegacyCheck:
             old_uneval = old is None or is_unevaluable(old["cosine"]["point"])
             if new_uneval and old_uneval and old is not None:
                 both_unevaluable += 1
+                continue
+            if new_uneval and not old_uneval:
+                # The anchor measured this cell and this run cannot: a lost number is a
+                # regression however the rows were selected, so it never reaches the
+                # `rows_identical` test that would file it as "differing".
+                mismatches.append(f"{key} {cell}: unevaluable now, legacy point "
+                                  f"{old['cosine']['point']!r}")
                 continue
             if not pa.rows_identical:
                 differing += 1
